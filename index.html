@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pantopong</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏓</text></svg>">
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <a class="brand" href="#"><span>🏓</span> Pantopong</a>
+    <button id="btn-settings" class="ghost" title="Settings">⚙</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <p id="note" class="note" hidden></p>
+
+  <section id="settings" class="panel" hidden>
+    <label class="field">
+      <span>Val Town endpoint</span>
+      <input type="url" id="api-input" placeholder="https://sethj-pantopong.web.val.run">
+    </label>
+    <p class="hint">Blank means this browser only — nobody else can join. Paste the val URL to
+      make tournaments shareable.</p>
+    <div class="row">
+      <button id="api-save" class="primary">Save</button>
+      <button id="settings-close" class="ghost">Close</button>
+    </div>
+  </section>
+
+  <main id="view"></main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
