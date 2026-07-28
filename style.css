@@ -147,19 +147,19 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
 
 .bscroll { overflow-x: auto; padding-bottom: 6px; }
 .rounds { display: flex; gap: 22px; min-width: min-content; }
-.round {
-  display: flex; flex-direction: column; justify-content: space-around;
-  gap: 12px; min-width: 178px;
-}
+.round { display: flex; flex-direction: column; min-width: 178px; }
 .round h3 {
-  margin: 0 0 2px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  margin: 0 0 10px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
   color: var(--faint); font-weight: 800; text-align: center;
+}
+.slots {
+  flex: 1; display: flex; flex-direction: column;
+  justify-content: space-around; gap: 12px;
 }
 
 .slot { border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
 .slot.ready { border-color: var(--gold); }
 .slot.dead { opacity: .3; }
-.slot.gf { border-color: var(--gold); }
 
 .side {
   display: flex; align-items: center; gap: 9px; width: 100%;

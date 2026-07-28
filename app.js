@@ -411,8 +411,8 @@ function viewBracket(T) {
       '<div class="bscroll"><div class="rounds">' +
       rounds.map(function (g) {
         return '<div class="round"><h3>' +
-          roundLabel(g.br, g.r, b.wbRounds, b.lbRounds, T.format) + '</h3>' +
-          g.slots.map(function (s) { return slotHtml(T, s); }).join('') + '</div>';
+          roundLabel(g.br, g.r, b.wbRounds, b.lbRounds, T.format) + '</h3><div class="slots">' +
+          g.slots.map(function (s) { return slotHtml(T, s); }).join('') + '</div></div>';
       }).join('') + '</div></div></section>';
   });
 
