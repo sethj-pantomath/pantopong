@@ -24,17 +24,24 @@ open http://localhost:8899
 With no endpoint set, everything lives in `localStorage` in that one browser, so nobody
 else can join. Fine for trying it; useless for a real tournament.
 
-## Wire up sharing
+## Sharing
 
-1. [val.town](https://val.town) → new **HTTP val**.
-2. Paste `valtown/api.ts`, save. You get a URL like `https://sethj-pantopong.web.val.run`.
-3. ⚙ on the site → paste the URL.
+The endpoint is already deployed — the val `jethsones/pantopong` serves `valtown/api.ts`.
+Set it once via ⚙ on the site, or just open a link carrying `?api=<endpoint>` and it saves
+itself.
 
 The join link then carries the endpoint (`?api=…#t=…`), so anyone who opens it is wired up
 automatically — no setup for the other players.
 
-The endpoint is **append-only**: one op per request, pushed onto a log. No update path, no
-delete path.
+Writes are **append-only**: one op per request, one `INSERT`. No update path, no delete
+path, so the worst a bad actor can do is add an op. The insert is conditional on a row cap
+in a single statement, which makes it atomic — concurrent result clicks during a tournament
+can't lose a write the way a read-modify-write cycle would. Verified with 12 simultaneous
+POSTs: all 12 landed.
+
+Corrections are made by appending, or from the val's SQLite console for real cleanup.
+
+To redeploy after editing `valtown/api.ts`, push the file contents to the val's `api.ts`.
 
 ## Deploy to GitHub Pages
 
@@ -67,15 +74,21 @@ No scores — just who won. Add them later if the league misses them.
 
 ## Bracket
 
-Standard elimination. Double: winners bracket of *n*−1 slots, losers bracket of *n*−2, plus
-the grand final. Byes only collapse when the opposing feeder can never produce a player —
-an undecided feeder stays TBD.
+Standard elimination. Double: winners bracket of *n*−1 slots, losers bracket of *n*−2, the
+grand final, and a conditional bracket reset. Byes only collapse when the opposing feeder
+can never produce a player — an undecided feeder stays TBD.
 
-Verified for every field size from 2 to 10 in both formats: double resolves in exactly
-2*n*−2 matches (everyone but the champion loses twice), single in *n*−1.
+**Bracket reset.** The winners-bracket finalist arrives at the grand final unbeaten. If
+they lose it, they have one loss, not two, so the reset match is played and appears
+automatically. If they win the grand final, it's over and the reset never shows up. Undoing
+the grand final result hides it again.
 
-No bracket-reset match in double elim — if the losers-bracket player wins the grand final,
-they win outright.
+So a double-elimination tournament runs 2*n*−2 matches when the winners-bracket player
+takes the final, and 2*n*−1 when the reset is needed. Single elimination is *n*−1.
+
+Verified for field sizes 2–10: both grand-final outcomes, both reset outcomes, correct
+champion in each, and the reset slot appearing and disappearing as the grand final is
+decided and undone.
 
 ## State
 
