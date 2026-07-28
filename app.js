@@ -213,6 +213,10 @@ function buildSlots(size, format) {
     a: { from: 'W' + wbRounds + '-0' }, b: { from: 'L' + lr + '-0' }
   });
 
+  // only played when the losers-bracket player wins the grand final —
+  // they arrive with one loss, so the winners-bracket player is owed a second
+  slots.push({ id: 'GF2', br: 'F', r: 2, i: 0, reset: true });
+
   return { slots: slots, wbRounds: wbRounds, lbRounds: lr, finalId: 'GF' };
 }
 
@@ -242,14 +246,41 @@ function resolveBracket(T) {
   }
 
   built.slots.forEach(function (s) {
+    s.bye = false;
+    s.dead = false;
+    s.ready = false;
+    s.hidden = false;
+
+    if (s.reset) {
+      const gf = byId.GF;
+      const live = !!(gf.won && gf.pb && gf.won === gf.pb);
+      s.hidden = !live;
+      if (!live) {
+        s.pa = null; s.pb = null; s.won = null;
+        won[s.id] = VOID; lost[s.id] = VOID;
+        return;
+      }
+      s.pa = gf.pa;
+      s.pb = gf.pb;
+      s.seedA = seeds.indexOf(s.pa) + 1;
+      s.seedB = seeds.indexOf(s.pb) + 1;
+      s.ready = true;
+      const rw = T.results[s.id];
+      if (rw === s.pa || rw === s.pb) {
+        won[s.id] = rw;
+        lost[s.id] = rw === s.pa ? s.pb : s.pa;
+      } else {
+        won[s.id] = PEND; lost[s.id] = PEND;
+      }
+      s.won = real(won[s.id]) ? won[s.id] : null;
+      return;
+    }
+
     const a = ent(s.a), b = ent(s.b);
     s.pa = real(a) ? a : null;
     s.pb = real(b) ? b : null;
     s.seedA = s.pa ? seeds.indexOf(s.pa) + 1 : 0;
     s.seedB = s.pb ? seeds.indexOf(s.pb) + 1 : 0;
-    s.bye = false;
-    s.dead = false;
-    s.ready = false;
 
     if (a === VOID && b === VOID) {
       won[s.id] = VOID; lost[s.id] = VOID; s.dead = true;
@@ -272,13 +303,16 @@ function resolveBracket(T) {
     s.won = real(won[s.id]) ? won[s.id] : null;
   });
 
-  built.champion = real(won[built.finalId]) ? won[built.finalId] : null;
+  const gf2 = byId.GF2;
+  built.champion = gf2 && !gf2.hidden
+    ? gf2.won
+    : (real(won[built.finalId]) ? won[built.finalId] : null);
   built.remaining = built.slots.filter(function (s) { return s.ready && !s.won; }).length;
   return built;
 }
 
 function roundLabel(br, r, wbRounds, lbRounds, format) {
-  if (br === 'F') return 'Grand Final';
+  if (br === 'F') return r === 2 ? 'Bracket Reset' : 'Grand Final';
   if (br === 'W') {
     if (r === wbRounds) return format === 'single' ? 'Final' : 'Winners Final';
     if (r === wbRounds - 1) return format === 'single' ? 'Semifinals' : 'Winners Semis';
@@ -384,6 +418,7 @@ function viewBracket(T) {
   const b = resolveBracket(T);
   const groups = {};
   b.slots.forEach(function (s) {
+    if (s.hidden) return;
     const key = s.br + s.r;
     (groups[key] = groups[key] || { br: s.br, r: s.r, slots: [] }).slots.push(s);
   });
