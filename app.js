@@ -508,7 +508,7 @@ function viewLobby(T) {
       const byes = size - n;
       return '<li' + (pid === PID ? ' class="me"' : '') + '>' +
         '<span class="sn">' + (i + 1) + '</span>' +
-        avatarOf(T, pid, 'sm') +
+        avatarOf(T, pid, 'md') +
         '<span class="pn">' + esc(nameOf(T, pid)) + '</span>' +
         (i < byes ? '<em class="bye">bye</em>' : '') +
         (pid === T.host ? '<em>host</em>' : '') +
