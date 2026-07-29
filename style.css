@@ -129,7 +129,8 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
 .row button.big { width: auto; flex: 1 1 200px; }
 
 .linkbox { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 14px; }
-.linkbox input { flex: 1 1 240px; font-size: 13px; color: var(--dim); }
+/* stays at the 16px floor: this field is tappable and iOS zooms below it */
+.linkbox input { flex: 1 1 240px; color: var(--dim); }
 
 .joinrow { display: flex; gap: 9px; margin-top: 14px; }
 .joinrow input { flex: 1; }
@@ -293,7 +294,7 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
 
   /* fatter targets for the pickers */
   .swatches { gap: 10px; }
-  .swatches button { width: 42px; height: 42px; min-height: 42px; }
+  .swatches button { width: 44px; height: 44px; min-height: 44px; }
   .emojis { gap: 8px; }
   .emojis button { width: 46px; height: 46px; min-height: 46px; font-size: 22px; }
   .avtabs button { flex: 1; min-width: 0; }
