@@ -24,18 +24,45 @@
   }
 }
 
-html, body { margin: 0; }
+html {
+  margin: 0;
+  -webkit-text-size-adjust: 100%;
+  background: var(--bg);
+}
 
 body {
+  margin: 0;
+  min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
   font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* app-like touch behaviour: no grey tap flash, no rubber-band chaining,
+     and no accidental text selection on chrome you're meant to tap */
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain;
+  -webkit-user-select: none;
+  user-select: none;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
-.wrap { max-width: 860px; margin: 0 auto; padding: 0 18px; }
+/* anything genuinely readable stays selectable */
+h1, .sub, .chips li, .tlist, .side span, .hint, .note, .champ, input {
+  -webkit-user-select: text;
+  user-select: text;
+}
 
-header { border-bottom: 1px solid var(--line); background: var(--panel); }
+.wrap {
+  max-width: 860px; margin: 0 auto;
+  padding: 0 max(18px, env(safe-area-inset-left)) 0 max(18px, env(safe-area-inset-right));
+}
+
+header {
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  position: sticky; top: 0; z-index: 20;
+  padding-top: env(safe-area-inset-top);
+}
 .bar { display: flex; align-items: center; justify-content: space-between; height: 56px; }
 
 .brand {
@@ -76,6 +103,9 @@ h2 {
 input, select {
   background: var(--sunk); border: 1px solid var(--line); color: var(--text);
   border-radius: 9px; padding: 11px 13px; font: inherit; width: 100%;
+  /* 16px minimum, or iOS zooms the whole page in when the field is focused */
+  font-size: max(16px, 1em);
+  touch-action: manipulation;
 }
 input:focus-visible, select:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
 
@@ -83,7 +113,12 @@ button {
   background: var(--sunk); border: 1px solid var(--line); color: var(--text);
   border-radius: 9px; padding: 11px 17px; font: inherit; font-weight: 700;
   cursor: pointer; white-space: nowrap;
+  min-height: 44px;
+  touch-action: manipulation;
+  -webkit-user-select: none; user-select: none;
 }
+button:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) { button:active { transform: none; } }
 button:hover { border-color: var(--faint); }
 button.primary { background: var(--gold); border-color: var(--gold); color: #17190f; }
 button.primary:hover { filter: brightness(1.07); }
@@ -194,9 +229,19 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
 
 /* bracket */
 
-.bscroll { overflow-x: auto; padding-bottom: 6px; }
+.bscroll {
+  overflow-x: auto; padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.bscroll::-webkit-scrollbar { display: none; }
 .rounds { display: flex; gap: 22px; min-width: min-content; }
-.round { display: flex; flex-direction: column; min-width: 196px; }
+.round {
+  display: flex; flex-direction: column; min-width: 196px;
+  scroll-snap-align: start;
+}
 .round h3 {
   margin: 0 0 10px; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
   color: var(--faint); font-weight: 800; text-align: center;
@@ -231,7 +276,41 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
 .gf .side.won { background: rgba(240,180,41,.15); }
 
 @media (max-width: 560px) {
-  h1 { font-size: 20px; }
-  .panel { padding: 15px; }
-  .round { min-width: 176px; }
+  h1 { font-size: 21px; }
+  .panel { padding: 15px; border-radius: 14px; margin: 12px 0; }
+  .round { min-width: 172px; }
+
+  /* one thumb, one column: actions go full width and stack */
+  .row { flex-direction: column; }
+  .row button, .row button.big { width: 100%; flex: none; }
+  .linkbox { flex-direction: column; }
+  .linkbox input, .linkbox button { width: 100%; flex: none; }
+
+  /* the join row keeps the avatar beside the field but drops the button below */
+  .joinrow { flex-wrap: wrap; }
+  .joinrow input { flex: 1 1 140px; }
+  .joinrow button { width: 100%; }
+
+  /* fatter targets for the pickers */
+  .swatches { gap: 10px; }
+  .swatches button { width: 42px; height: 42px; min-height: 42px; }
+  .emojis { gap: 8px; }
+  .emojis button { width: 46px; height: 46px; min-height: 46px; font-size: 22px; }
+  .avtabs button { flex: 1; min-width: 0; }
+
+  /* bracket rows are the main tap target on a phone */
+  .side { padding: 12px 12px; font-size: 15px; }
+  .champ { padding: 14px 15px; gap: 12px; }
+  .champ strong { font-size: 19px; }
+  .champ .av-xl { width: 46px; height: 46px; }
+
+  .chips li { padding: 6px 10px 6px 6px; }
+  .tlist a { padding: 14px 2px; }
+}
+
+/* installed to the home screen: no browser chrome, so the header carries
+   the status bar and the app should not look like a page in a viewport */
+@media (display-mode: standalone) {
+  header { border-bottom-width: 1px; }
+  body { overscroll-behavior: none; }
 }
