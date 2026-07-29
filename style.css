@@ -145,10 +145,12 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
   background: var(--sunk);
 }
 .av-sm { width: 22px; height: 22px; font-size: 9px; }
+.av-md { width: 34px; height: 34px; font-size: 12px; }
 .av-lg { width: 44px; height: 44px; font-size: 16px; }
 .av-xl { width: 54px; height: 54px; font-size: 20px; }
 .av-em { background: var(--sunk) !important; }
 .av-sm.av-em { font-size: 13px; }
+.av-md.av-em { font-size: 19px; }
 .av-lg.av-em { font-size: 24px; }
 .av-xl.av-em { font-size: 30px; }
 
@@ -190,17 +192,17 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
 
 .seedlist { list-style: none; margin: 0; padding: 0; }
 .seedlist li {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 4px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 4px; border-bottom: 1px solid var(--line);
 }
 .seedlist li:last-child { border-bottom: 0; }
 .seedlist li.me .pn { color: var(--gold); }
 .seedlist .sn {
-  min-width: 20px; text-align: right; font-variant-numeric: tabular-nums;
-  font-weight: 800; color: var(--faint); font-size: 13px;
+  min-width: 22px; text-align: right; font-variant-numeric: tabular-nums;
+  font-weight: 800; color: var(--faint); font-size: 15px;
 }
 .seedlist .pn {
-  flex: 1; font-weight: 600; overflow: hidden;
+  flex: 1; font-weight: 700; font-size: 16px; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap;
 }
 .seedlist em {
@@ -213,13 +215,13 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
 }
 .nudge { display: flex; gap: 4px; flex: none; }
 .nudge button {
-  width: 34px; height: 34px; min-height: 34px; padding: 0;
-  font-size: 11px; line-height: 1; border-radius: 8px; color: var(--dim);
+  width: 40px; height: 40px; min-height: 40px; padding: 0;
+  font-size: 12px; line-height: 1; border-radius: 9px; color: var(--dim);
 }
 .nudge button:disabled { opacity: .3; }
 .seedlist .x {
-  border: 0; background: none; color: var(--faint); padding: 0 4px;
-  font-size: 19px; line-height: 1; border-radius: 0; min-height: 34px; flex: none;
+  border: 0; background: none; color: var(--faint); padding: 0 6px;
+  font-size: 22px; line-height: 1; border-radius: 0; min-height: 40px; flex: none;
 }
 .seedlist .x:hover { color: var(--text); }
 
@@ -347,6 +349,9 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
   .champ .av-xl { width: 46px; height: 46px; }
 
   .chips li { padding: 6px 10px 6px 6px; }
+  .seedlist li { padding: 15px 2px; gap: 11px; }
+  .seedlist .pn { font-size: 17px; }
+  .nudge button { width: 42px; height: 42px; min-height: 42px; }
   .tlist a { padding: 14px 2px; }
 }
 
