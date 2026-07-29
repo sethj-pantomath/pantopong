@@ -266,7 +266,9 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
   font-style: normal; font-size: 10px; color: var(--faint);
   font-weight: 800; min-width: 13px;
 }
-.side > span { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+/* the name fills the row, but not the avatar span, which must stay square:
+   `.side > span` out-specifies `.av { flex: none }` and stretched it to an oval */
+.side > span:not(.av) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side b { color: var(--win); }
 .side.pick { cursor: pointer; }
 .side.pick:hover { background: var(--sunk); }
