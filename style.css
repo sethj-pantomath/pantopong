@@ -166,16 +166,18 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
 .avpanel { margin-top: 10px; }
 
 .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+/* min-height from the global button rule beats height, which squashed
+   these into vertical ovals — pin both */
 .swatches button {
-  width: 30px; height: 30px; border-radius: 50%; padding: 0;
+  width: 30px; height: 30px; min-height: 30px; border-radius: 50%; padding: 0;
   border: 2px solid transparent;
 }
 .swatches button.on { border-color: var(--text); }
 
 .emojis { display: flex; gap: 6px; flex-wrap: wrap; }
 .emojis button {
-  width: 36px; height: 36px; padding: 0; font-size: 18px; line-height: 1;
-  background: var(--sunk); border-radius: 9px;
+  width: 36px; height: 36px; min-height: 36px; padding: 0; font-size: 18px;
+  line-height: 1; background: var(--sunk); border-radius: 9px;
 }
 .emojis button.on { border-color: var(--gold); background: rgba(240,180,41,.16); }
 
@@ -183,6 +185,43 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
 .photorow input[type=file] { flex: 1 1 200px; font-size: 13px; padding: 8px; }
 .photorow .ok { color: var(--win); font-size: 12px; font-weight: 700; }
 .photorow .hint { margin: 0; }
+
+/* seed order */
+
+.seedlist { list-style: none; margin: 0; padding: 0; }
+.seedlist li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 4px; border-bottom: 1px solid var(--line);
+}
+.seedlist li:last-child { border-bottom: 0; }
+.seedlist li.me .pn { color: var(--gold); }
+.seedlist .sn {
+  min-width: 20px; text-align: right; font-variant-numeric: tabular-nums;
+  font-weight: 800; color: var(--faint); font-size: 13px;
+}
+.seedlist .pn {
+  flex: 1; font-weight: 600; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.seedlist em {
+  font-style: normal; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--faint); font-weight: 800; flex: none;
+}
+.seedlist em.bye {
+  color: var(--gold); border: 1px solid rgba(240,180,41,.4);
+  border-radius: 4px; padding: 2px 5px;
+}
+.nudge { display: flex; gap: 4px; flex: none; }
+.nudge button {
+  width: 34px; height: 34px; min-height: 34px; padding: 0;
+  font-size: 11px; line-height: 1; border-radius: 8px; color: var(--dim);
+}
+.nudge button:disabled { opacity: .3; }
+.seedlist .x {
+  border: 0; background: none; color: var(--faint); padding: 0 4px;
+  font-size: 19px; line-height: 1; border-radius: 0; min-height: 34px; flex: none;
+}
+.seedlist .x:hover { color: var(--text); }
 
 /* lobby chips */
 
