@@ -170,14 +170,16 @@ function colorFor(name) {
 function avatarMarkup(av, name, pid, size) {
   const cls = 'av av-' + size;
   const a = av || { k: 'color' };
+  // a local draft wins over the stored URL: during the join flow the upload
+  // has not happened yet, so the endpoint would 404 and look like a failure
+  if (a.k === 'photo' && a.d) {
+    return '<img class="' + cls + '" src="' + esc(a.d) + '" alt="">';
+  }
   if (a.k === 'photo' && API) {
     return '<img class="' + cls + '" src="' + esc(API + '/avatar/' + pid) + '" alt="" ' +
       'onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),' +
       '{className:\'' + cls + '\',textContent:\'' + esc(initialsOf(name)) + '\',style:\'background:' +
       esc(colorFor(name)) + '\'}))">';
-  }
-  if (a.k === 'photo' && a.d) {
-    return '<img class="' + cls + '" src="' + esc(a.d) + '" alt="">';
   }
   if (a.k === 'emoji' && a.v) {
     return '<span class="' + cls + ' av-em">' + esc(a.v) + '</span>';
@@ -472,7 +474,8 @@ function viewLobby(T) {
     '<p class="sub">' + (T.format === 'single' ? 'Single' : 'Double') + ' elimination · lobby</p>' +
     '<div class="linkbox">' +
     '<input id="join-link" readonly value="' + esc(joinLink(T.tid)) + '">' +
-    '<button class="primary" id="copy-link">Copy join link</button>' +
+    '<button class="primary" id="copy-link">' +
+    (canShare() ? 'Share' : 'Copy join link') + '</button>' +
     '</div>' +
     '<p class="hint">Drop that in the channel. Everyone who opens it can add themselves.</p>' +
     '</section>' +
@@ -522,7 +525,7 @@ function viewBracket(T) {
     '<div><h1>' + esc(T.name) + '</h1>' +
     '<p class="sub">' + (T.format === 'single' ? 'Single' : 'Double') + ' elimination · ' +
     T.seeds.length + ' players</p></div>' +
-    '<button class="ghost" id="copy-link" data-link="1">Copy link</button>' +
+    '<button class="ghost" id="copy-link">' + (canShare() ? 'Share' : 'Copy link') + '</button>' +
     '</section>';
 
   if (b.champion) {
@@ -630,7 +633,7 @@ function wire() {
     const d = t.dataset;
 
     if (t.id === 'copy-link') {
-      copy(joinLink(currentTid()));
+      shareOrCopy(T, joinLink(currentTid()));
     } else if (d.pick && T) {
       const cur = T.results[d.slot];
       pushOp({ t: 'result', tid: T.tid, slot: d.slot, winner: cur === d.pick ? null : d.pick, pid: PID });
@@ -673,28 +676,51 @@ async function joinTournament() {
   pushOp({ t: 'join', tid: T.tid, pid: PID, name: name, av: av });
 }
 
-// square centre-crop down to 160px so a phone photo becomes ~10KB
+// square centre-crop down to 160px so a phone photo becomes ~10KB.
+// Validation is by decoding, not by file.type — some pickers report an
+// empty type for perfectly good images.
 function pickPhoto(file) {
   if (!file) return;
-  if (!/^image\//.test(file.type)) return warn('That is not an image.');
-  const reader = new FileReader();
-  reader.onload = function () {
+  const heic = /hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
+
+  decodeImage(file).then(function (src) {
+    const side = Math.min(src.width, src.height);
+    const c = document.createElement('canvas');
+    c.width = c.height = 160;
+    c.getContext('2d').drawImage(
+      src, (src.width - side) / 2, (src.height - side) / 2, side, side, 0, 0, 160, 160
+    );
+    AVPHOTO = c.toDataURL('image/jpeg', 0.82);
+    AVK = 'photo';
+    NOTE = '';
+    if (src.close) src.close();
+    render();
+  }).catch(function () {
+    warn(heic
+      ? 'This browser can’t read HEIC photos. Take a screenshot of it and upload that, ' +
+        'or switch your iPhone to Settings → Camera → Formats → Most Compatible.'
+      : 'Could not read that image — try a JPEG or PNG.');
+  });
+}
+
+// createImageBitmap reads formats <img> sometimes won't, and honours EXIF
+// orientation so sideways phone photos don't stay sideways
+function decodeImage(file) {
+  if (window.createImageBitmap) {
+    return createImageBitmap(file, { imageOrientation: 'from-image' })
+      .catch(function () { return decodeViaImg(file); });
+  }
+  return decodeViaImg(file);
+}
+
+function decodeViaImg(file) {
+  return new Promise(function (resolve, reject) {
+    const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = function () {
-      const side = Math.min(img.width, img.height);
-      const c = document.createElement('canvas');
-      c.width = c.height = 160;
-      const ctx = c.getContext('2d');
-      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 160, 160);
-      AVPHOTO = c.toDataURL('image/jpeg', 0.82);
-      AVK = 'photo';
-      render();
-    };
-    img.onerror = function () { warn('Could not read that image.'); };
-    img.src = reader.result;
-  };
-  reader.onerror = function () { warn('Could not read that file.'); };
-  reader.readAsDataURL(file);
+    img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('undecodable')); };
+    img.src = url;
+  });
 }
 
 async function uploadPhoto(dataUrl) {
@@ -727,6 +753,11 @@ function startTournament(T, shuffle) {
 
 // ---------- helpers ----------
 
+function warn(msg) {
+  NOTE = msg;
+  render();
+}
+
 function normApi(u) {
   return String(u || '').trim().replace(/\/+$/, '');
 }
@@ -738,7 +769,32 @@ function joinLink(tid) {
   return location.origin + location.pathname + '#t=' + tid;
 }
 
+function canShare() {
+  return typeof navigator !== 'undefined' && !!navigator.share;
+}
+
+// on a phone the OS share sheet is how the link actually reaches Slack;
+// a cancelled share must stay silent rather than look like a failure
+function shareOrCopy(T, url) {
+  if (canShare()) {
+    navigator.share({
+      title: T ? T.name : 'Pantopong',
+      text: T ? 'Sign up for ' + T.name : 'Pantopong tournament',
+      url: url
+    }).catch(function (e) {
+      if (e && e.name === 'AbortError') return;
+      copy(url);
+    });
+    return;
+  }
+  copy(url);
+}
+
 function copy(text) {
+  if (!navigator.clipboard) {
+    NOTE = text;
+    return render();
+  }
   navigator.clipboard.writeText(text).then(function () {
     NOTE = 'Link copied.';
     render();

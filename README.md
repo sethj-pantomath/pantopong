@@ -70,7 +70,30 @@ tournament a link refers to. The val does, and it can render Open Graph tags per
 tournament. Real browsers are redirected onward to the app in JavaScript — deliberately
 not a meta-refresh, which some crawlers follow before reading the tags.
 
+The preview carries a generated 1200×630 card (`og.ts`, via satori + resvg-wasm) showing the
+tournament name, format, who's signed up, and the count. The logo mark is drawn as a shape
+rather than the 🏓 emoji — Inter has no emoji glyph, so the character rendered as tofu.
+
 Slack caches unfurls, so a player count can read low if you paste the same link twice.
+
+## On a phone
+
+Built to feel like an app rather than a page in a browser:
+
+- **Installable.** Web manifest plus an apple-touch-icon, so Add to Home Screen gives a
+  standalone window with no browser chrome and a matching status bar.
+- **Native share sheet.** Where `navigator.share` exists the button becomes *Share* and
+  opens the OS sheet, which is how the link actually reaches Slack from a phone. A
+  cancelled share stays silent instead of looking like a failure.
+- **No zoom-on-focus.** Inputs are 16px minimum; anything smaller makes iOS zoom the whole
+  page when a field is focused, which is the single most page-like tell there is.
+- **Tap targets** are 44px minimum, with fatter colour and emoji swatches on small screens,
+  and bracket rows padded out since they're the main thing you tap.
+- **No grey tap flash**, no rubber-band scroll chaining, and no accidental text selection on
+  controls — while names, headings, and the link field stay selectable.
+- **Safe-area insets** so the header clears a notch and nothing sits under the home bar.
+- **Bracket scroll snaps** by round, and its scrollbar is hidden.
+- Actions go full-width and stack in one column under 560px.
 
 **Join** — anyone who opens the link types their name and they're in. Identity is a random
 id in `localStorage`, so "you" is whoever this browser joined as. You can remove yourself;
