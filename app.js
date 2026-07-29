@@ -4,20 +4,31 @@ const LS = { api: 'pantopong.api', pid: 'pantopong.pid', name: 'pantopong.name',
 const VOID = ' void';
 const PEND = ' pend';
 
+const PALETTE = ['#e0564f', '#e08a2e', '#d8b431', '#5aa85a', '#3f9bb5', '#4d78d0', '#8a63c8', '#c05a94'];
+const EMOJI = [
+  '🏓', '🔥', '💀', '🐐', '🦅', '🐍', '🦈', '🐺',
+  '🍬', '🧊', '⚡', '🌪', '🎯', '🚀', '👑', '🥊',
+  '🤖', '👽', '🧙', '🥷', '🤠', '🦖', '🐸', '🦆',
+  '☕', '🍺', '🌮', '🧀', '🥔', '🍌', '🧠', '😤'
+];
+
 let OPS = [];
 let TS = {};
 let API = '';
 let PID = '';
 let MYNAME = '';
 let NOTE = '';
+let AVK = 'color';
+let AVV = '';
+let AVPHOTO = '';
 
 document.addEventListener('DOMContentLoaded', init);
 window.addEventListener('hashchange', render);
 
 async function init() {
   const q = new URLSearchParams(location.search);
-  if (q.get('api')) localStorage.setItem(LS.api, q.get('api').trim());
-  API = localStorage.getItem(LS.api) || '';
+  if (q.get('api')) localStorage.setItem(LS.api, normApi(q.get('api')));
+  API = normApi(localStorage.getItem(LS.api) || '');
 
   PID = localStorage.getItem(LS.pid) || '';
   if (!PID) {
@@ -91,7 +102,8 @@ function reduceOps(ops) {
       if (!ts[op.tid]) {
         ts[op.tid] = {
           tid: op.tid, name: op.name, format: op.format === 'single' ? 'single' : 'double',
-          host: op.pid, at: op.at, players: [], names: {}, seeds: null, size: 0, results: {}
+          host: op.pid, at: op.at, players: [], names: {}, avatars: {},
+          seeds: null, size: 0, results: {}
         };
       }
       return;
@@ -101,6 +113,7 @@ function reduceOps(ops) {
     switch (op.t) {
       case 'join':
         T.names[op.pid] = op.name;
+        T.avatars[op.pid] = op.av || { k: 'color', v: colorFor(op.name) };
         if (!T.players.some(function (p) { return p.pid === op.pid; })) {
           T.players.push({ pid: op.pid, name: op.name });
         } else {
@@ -136,6 +149,84 @@ function currentTid() {
 
 function nameOf(T, pid) { return T.names[pid] || 'Unknown'; }
 function joined(T) { return T.players.some(function (p) { return p.pid === PID; }); }
+
+// ---------- avatars ----------
+
+function initialsOf(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  const first = parts[0][0];
+  const second = parts.length > 1 ? parts[parts.length - 1][0] : '';
+  return (first + second).toUpperCase();
+}
+
+function colorFor(name) {
+  let h = 0;
+  const s = String(name || '');
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 100000;
+  return PALETTE[h % PALETTE.length];
+}
+
+function avatarMarkup(av, name, pid, size) {
+  const cls = 'av av-' + size;
+  const a = av || { k: 'color' };
+  if (a.k === 'photo' && API) {
+    return '<img class="' + cls + '" src="' + esc(API + '/avatar/' + pid) + '" alt="" ' +
+      'onerror="this.replaceWith(Object.assign(document.createElement(\'span\'),' +
+      '{className:\'' + cls + '\',textContent:\'' + esc(initialsOf(name)) + '\',style:\'background:' +
+      esc(colorFor(name)) + '\'}))">';
+  }
+  if (a.k === 'photo' && a.d) {
+    return '<img class="' + cls + '" src="' + esc(a.d) + '" alt="">';
+  }
+  if (a.k === 'emoji' && a.v) {
+    return '<span class="' + cls + ' av-em">' + esc(a.v) + '</span>';
+  }
+  return '<span class="' + cls + '" style="background:' + esc(a.v || colorFor(name)) + '">' +
+    esc(initialsOf(name)) + '</span>';
+}
+
+function avatarOf(T, pid, size) {
+  return avatarMarkup(T.avatars[pid], nameOf(T, pid), pid, size);
+}
+
+function myAvatarDraft() {
+  if (AVK === 'photo' && AVPHOTO) return { k: 'photo', d: AVPHOTO };
+  if (AVK === 'emoji') return { k: 'emoji', v: AVV || EMOJI[0] };
+  return { k: 'color', v: AVV || colorFor(MYNAME) };
+}
+
+function avatarChooser() {
+  const tab = function (k, label) {
+    return '<button type="button" data-avtab="' + k + '"' + (AVK === k ? ' class="on"' : '') + '>' +
+      label + '</button>';
+  };
+
+  let panel = '';
+  if (AVK === 'color') {
+    panel = '<div class="swatches">' + PALETTE.map(function (c) {
+      const on = (AVV || colorFor(MYNAME)) === c;
+      return '<button type="button" data-avcolor="' + c + '" style="background:' + c + '"' +
+        (on ? ' class="on"' : '') + ' aria-label="colour"></button>';
+    }).join('') + '</div>';
+  } else if (AVK === 'emoji') {
+    panel = '<div class="emojis">' + EMOJI.map(function (e) {
+      return '<button type="button" data-avemoji="' + e + '"' +
+        ((AVV || EMOJI[0]) === e ? ' class="on"' : '') + '>' + e + '</button>';
+    }).join('') + '</div>';
+  } else if (!API) {
+    panel = '<p class="hint">Photos need the shared endpoint — set it in ⚙ first. ' +
+      'Initials and emoji work offline.</p>';
+  } else {
+    panel = '<div class="photorow">' +
+      '<input type="file" id="av-file" accept="image/*">' +
+      (AVPHOTO ? '<span class="ok">ready</span>' : '<span class="hint">square crop, resized to 160px</span>') +
+      '</div>';
+  }
+
+  return '<div class="avtabs">' + tab('color', 'Initials') + tab('emoji', 'Emoji') +
+    tab('photo', 'Photo') + '</div><div class="avpanel">' + panel + '</div>';
+}
 
 // ---------- bracket ----------
 
@@ -389,16 +480,20 @@ function viewLobby(T) {
     '<section class="panel">' +
     '<h2>' + n + ' in' + (n ? '' : ' — nobody yet') + '</h2>' +
     (n ? '<ul class="chips">' + T.players.map(function (p) {
-      return '<li' + (p.pid === PID ? ' class="me"' : '') + '>' + esc(p.name) +
+      return '<li' + (p.pid === PID ? ' class="me"' : '') + '>' +
+        avatarOf(T, p.pid, 'sm') + esc(p.name) +
         (p.pid === T.host ? '<em>host</em>' : '') +
         (p.pid === PID || isHost ? '<button class="x" data-drop="' + esc(p.pid) + '" title="Remove">×</button>' : '') +
         '</li>';
     }).join('') + '</ul>' : '') +
 
     (mine ? '' :
-      '<form id="join-form" class="joinrow">' +
+      '<form id="join-form" class="joinbox">' +
+      '<div class="joinrow">' +
+      '<span class="avprev">' + avatarMarkup(myAvatarDraft(), MYNAME, PID, 'lg') + '</span>' +
       '<input id="join-name" placeholder="Your name" maxlength="24" value="' + esc(MYNAME) + '" required>' +
       '<button class="primary" type="submit">Join</button>' +
+      '</div>' + avatarChooser() +
       '</form>') +
     '</section>' +
 
@@ -431,8 +526,8 @@ function viewBracket(T) {
     '</section>';
 
   if (b.champion) {
-    html += '<div class="champ"><span>🏆</span><div><em>Champion</em><strong>' +
-      esc(nameOf(T, b.champion)) + '</strong></div></div>';
+    html += '<div class="champ"><span>🏆</span>' + avatarOf(T, b.champion, 'xl') +
+      '<div><em>Champion</em><strong>' + esc(nameOf(T, b.champion)) + '</strong></div></div>';
   }
 
   ['W', 'L', 'F'].forEach(function (br) {
@@ -471,6 +566,7 @@ function slotHtml(T, s) {
       (s.won && !isWin ? ' out' : '') + '"' +
       (s.ready ? ' data-slot="' + esc(s.id) + '" data-pick="' + esc(p) + '"' : ' disabled') + '>' +
       '<i>' + (seed > 0 ? seed : '') + '</i>' +
+      avatarOf(T, p, 'sm') +
       '<span>' + esc(nameOf(T, p)) + '</span>' +
       (isWin ? '<b>✓</b>' : '') + '</button>';
   }
@@ -489,7 +585,7 @@ function wire() {
     document.getElementById('settings').hidden = true;
   });
   document.getElementById('api-save').addEventListener('click', async function () {
-    API = document.getElementById('api-input').value.trim();
+    API = normApi(document.getElementById('api-input').value);
     localStorage.setItem(LS.api, API);
     document.getElementById('settings').hidden = true;
     await refresh();
@@ -505,7 +601,29 @@ function wire() {
     }
   });
 
+  document.body.addEventListener('input', function (e) {
+    if (e.target.id === 'join-name') {
+      MYNAME = e.target.value;
+      const prev = document.querySelector('.avprev');
+      if (prev) prev.innerHTML = avatarMarkup(myAvatarDraft(), MYNAME, PID, 'lg');
+    }
+  });
+
+  document.body.addEventListener('change', function (e) {
+    if (e.target.id === 'av-file') pickPhoto(e.target.files[0]);
+  });
+
   document.body.addEventListener('click', function (e) {
+    const av = e.target.closest('[data-avtab],[data-avcolor],[data-avemoji]');
+    if (av) {
+      const d = av.dataset;
+      if (d.avtab) { AVK = d.avtab; if (AVK !== 'photo') AVV = ''; }
+      else if (d.avcolor) { AVK = 'color'; AVV = d.avcolor; }
+      else if (d.avemoji) { AVK = 'emoji'; AVV = d.avemoji; }
+      render();
+      return;
+    }
+
     const t = e.target.closest('[data-pick],[data-start],[data-drop],[data-reset],#copy-link');
     if (!t) return;
     const T = TS[currentTid()];
@@ -537,14 +655,62 @@ function createTournament() {
   location.hash = 't=' + tid;
 }
 
-function joinTournament() {
+async function joinTournament() {
   const T = TS[currentTid()];
   if (!T) return;
   const name = document.getElementById('join-name').value.trim();
   if (!name) return;
   MYNAME = name;
   localStorage.setItem(LS.name, name);
-  pushOp({ t: 'join', tid: T.tid, pid: PID, name: name });
+
+  let av = myAvatarDraft();
+  if (av.k === 'photo' && av.d) {
+    const stored = await uploadPhoto(av.d);
+    // a failed upload must not block joining — fall back to initials
+    av = stored ? { k: 'photo' } : { k: 'color', v: colorFor(name) };
+  }
+
+  pushOp({ t: 'join', tid: T.tid, pid: PID, name: name, av: av });
+}
+
+// square centre-crop down to 160px so a phone photo becomes ~10KB
+function pickPhoto(file) {
+  if (!file) return;
+  if (!/^image\//.test(file.type)) return warn('That is not an image.');
+  const reader = new FileReader();
+  reader.onload = function () {
+    const img = new Image();
+    img.onload = function () {
+      const side = Math.min(img.width, img.height);
+      const c = document.createElement('canvas');
+      c.width = c.height = 160;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 160, 160);
+      AVPHOTO = c.toDataURL('image/jpeg', 0.82);
+      AVK = 'photo';
+      render();
+    };
+    img.onerror = function () { warn('Could not read that image.'); };
+    img.src = reader.result;
+  };
+  reader.onerror = function () { warn('Could not read that file.'); };
+  reader.readAsDataURL(file);
+}
+
+async function uploadPhoto(dataUrl) {
+  if (!API) return false;
+  try {
+    const r = await fetch(API + '/avatar/' + PID, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain;charset=utf-8' },
+      body: dataUrl
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return true;
+  } catch (e) {
+    NOTE = 'Avatar upload failed, using initials instead. (' + e.message + ')';
+    return false;
+  }
 }
 
 function startTournament(T, shuffle) {
@@ -561,9 +727,15 @@ function startTournament(T, shuffle) {
 
 // ---------- helpers ----------
 
+function normApi(u) {
+  return String(u || '').trim().replace(/\/+$/, '');
+}
+
+// the val's /t/ route carries Open Graph tags so the link unfurls in Slack,
+// then bounces to the app; without an endpoint there is nothing to share
 function joinLink(tid) {
-  return location.origin + location.pathname +
-    (API ? '?api=' + encodeURIComponent(API) : '') + '#t=' + tid;
+  if (API) return API + '/t/' + tid;
+  return location.origin + location.pathname + '#t=' + tid;
 }
 
 function copy(text) {
