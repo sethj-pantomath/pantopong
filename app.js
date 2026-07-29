@@ -103,7 +103,7 @@ function reduceOps(ops) {
         ts[op.tid] = {
           tid: op.tid, name: op.name, format: op.format === 'single' ? 'single' : 'double',
           host: op.pid, at: op.at, players: [], names: {}, avatars: {},
-          seeds: null, size: 0, results: {}
+          order: [], seeds: null, size: 0, results: {}
         };
       }
       return;
@@ -122,6 +122,9 @@ function reduceOps(ops) {
         break;
       case 'leave':
         T.players = T.players.filter(function (p) { return p.pid !== op.pid; });
+        break;
+      case 'seed':
+        T.order = (op.order || []).slice();
         break;
       case 'start':
         T.seeds = op.seeds.slice();
@@ -149,6 +152,25 @@ function currentTid() {
 
 function nameOf(T, pid) { return T.names[pid] || 'Unknown'; }
 function joined(T) { return T.players.some(function (p) { return p.pid === PID; }); }
+
+// the stored order is advisory: anyone who joined or left since it was set is
+// reconciled here, so a stale order can never drop or duplicate a player
+function seedOrder(T) {
+  const live = T.players.map(function (p) { return p.pid; });
+  const ordered = T.order.filter(function (pid) { return live.indexOf(pid) >= 0; });
+  live.forEach(function (pid) { if (ordered.indexOf(pid) < 0) ordered.push(pid); });
+  return ordered;
+}
+
+function moveSeed(T, pid, dir) {
+  const order = seedOrder(T);
+  const i = order.indexOf(pid);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= order.length) return;
+  order[i] = order[j];
+  order[j] = pid;
+  pushOp({ t: 'seed', tid: T.tid, order: order });
+}
 
 // ---------- avatars ----------
 
@@ -234,7 +256,7 @@ function avatarChooser() {
 
 function real(x) { return x && x !== VOID && x !== PEND; }
 
-function seedOrder(size) {
+function pairingOrder(size) {
   let o = [1];
   while (o.length < size) {
     const n = o.length * 2, next = [];
@@ -252,7 +274,7 @@ function bracketSize(n, format) {
 function buildSlots(size, format) {
   const slots = [];
   const wbRounds = Math.round(Math.log2(size));
-  const order = seedOrder(size);
+  const order = pairingOrder(size);
 
   for (let r = 1; r <= wbRounds; r++) {
     const n = size / Math.pow(2, r);
@@ -482,13 +504,24 @@ function viewLobby(T) {
 
     '<section class="panel">' +
     '<h2>' + n + ' in' + (n ? '' : ' — nobody yet') + '</h2>' +
-    (n ? '<ul class="chips">' + T.players.map(function (p) {
-      return '<li' + (p.pid === PID ? ' class="me"' : '') + '>' +
-        avatarOf(T, p.pid, 'sm') + esc(p.name) +
-        (p.pid === T.host ? '<em>host</em>' : '') +
-        (p.pid === PID || isHost ? '<button class="x" data-drop="' + esc(p.pid) + '" title="Remove">×</button>' : '') +
+    (n ? '<ol class="seedlist">' + seedOrder(T).map(function (pid, i) {
+      const byes = size - n;
+      return '<li' + (pid === PID ? ' class="me"' : '') + '>' +
+        '<span class="sn">' + (i + 1) + '</span>' +
+        avatarOf(T, pid, 'sm') +
+        '<span class="pn">' + esc(nameOf(T, pid)) + '</span>' +
+        (i < byes ? '<em class="bye">bye</em>' : '') +
+        (pid === T.host ? '<em>host</em>' : '') +
+        '<span class="nudge">' +
+        '<button data-up="' + esc(pid) + '"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">▲</button>' +
+        '<button data-down="' + esc(pid) + '"' + (i === n - 1 ? ' disabled' : '') + ' aria-label="Move down">▼</button>' +
+        '</span>' +
+        (pid === PID || isHost
+          ? '<button class="x" data-drop="' + esc(pid) + '" title="Remove">×</button>' : '') +
         '</li>';
-    }).join('') + '</ul>' : '') +
+    }).join('') + '</ol>' +
+      '<p class="hint">Seed 1 plays the lowest seed. Nudge people up or down to set the ' +
+      'bracket — everyone sees the same order.</p>' : '') +
 
     (mine ? '' :
       '<form id="join-form" class="joinbox">' +
@@ -504,10 +537,10 @@ function viewLobby(T) {
     (n < 2
       ? '<p class="hint">Two players minimum to start.</p>'
       : '<div class="row">' +
-      '<button class="primary big" data-start="random">Start · random seeds</button>' +
-      '<button data-start="order">Start · join order</button>' +
+      '<button class="primary big" data-start="order">Start · seeded order</button>' +
+      '<button data-start="random">Shuffle &amp; start</button>' +
       '</div><p class="hint">' + n + ' player' + (n === 1 ? '' : 's') + ' in a ' + size +
-      '-slot bracket' + (size > n ? ' — top ' + (size - n) + ' seed' + (size - n === 1 ? '' : 's') + ' get a bye' : '') +
+      '-slot bracket' + (size > n ? ' — the top ' + (size - n) + ' seed' + (size - n === 1 ? '' : 's') + ' get a bye' : '') +
       '. Anyone can start it.</p>')
     + '</section>';
 }
@@ -617,6 +650,13 @@ function wire() {
   });
 
   document.body.addEventListener('click', function (e) {
+    const nudge = e.target.closest('[data-up],[data-down]');
+    if (nudge) {
+      const T2 = TS[currentTid()];
+      if (T2) moveSeed(T2, nudge.dataset.up || nudge.dataset.down, nudge.dataset.up ? -1 : 1);
+      return;
+    }
+
     const av = e.target.closest('[data-avtab],[data-avcolor],[data-avemoji]');
     if (av) {
       const d = av.dataset;
@@ -740,7 +780,7 @@ async function uploadPhoto(dataUrl) {
 }
 
 function startTournament(T, shuffle) {
-  const seeds = T.players.map(function (p) { return p.pid; });
+  const seeds = seedOrder(T);
   if (seeds.length < 2) return;
   if (shuffle) {
     for (let i = seeds.length - 1; i > 0; i--) {
