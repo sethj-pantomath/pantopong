@@ -58,11 +58,35 @@ Live at `https://sethj-pantomath.github.io/pantopong/`.
 
 **Create** — name it, pick single or double elimination.
 
-**Share** — copy the join link into the channel.
+**Share** — copy the join link into the channel. It points at the val's `/t/<tid>` route,
+not the app, so it unfurls in Slack with the tournament name and a live player count:
+
+> **Sign up for Vikram Send-Off Invitational**
+> Double elimination · 4 players in · tap to add your name
+
+That indirection is necessary, not decorative. The app keeps the tournament id in the URL
+*fragment*, which browsers never transmit, so a static page has no way to know which
+tournament a link refers to. The val does, and it can render Open Graph tags per
+tournament. Real browsers are redirected onward to the app in JavaScript — deliberately
+not a meta-refresh, which some crawlers follow before reading the tags.
+
+Slack caches unfurls, so a player count can read low if you paste the same link twice.
 
 **Join** — anyone who opens the link types their name and they're in. Identity is a random
 id in `localStorage`, so "you" is whoever this browser joined as. You can remove yourself;
 the creator can remove anyone. Nobody signs in.
+
+**Avatars** — three options at join time, with a live preview:
+
+- *Initials* on a colour you pick. The default, with a colour derived from your name so it
+  looks deliberate even if you touch nothing.
+- *Emoji* from a 32-option grid. Costs nothing — it rides along in the `join` op.
+- *Photo*, centre-cropped square and resized to 160px in the browser before upload, which
+  turns a phone photo into roughly 10KB. Stored as a blob on the val and served from
+  `/avatar/<pid>`. Needs the shared endpoint; a failed upload falls back to initials rather
+  than blocking the join.
+
+Avatars appear in the lobby, in every bracket slot, and on the champion banner.
 
 **Start** — random seeds or join order. Anyone can start it. Field sizes that aren't a
 power of two give byes to the top seeds.
