@@ -92,6 +92,12 @@ h2 {
 }
 .hint { margin: 12px 0 0; font-size: 13px; color: var(--faint); }
 
+.note.stale {
+  background: rgba(240, 180, 41, .12); border-color: var(--gold); color: var(--text);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.note.stale button { padding: 8px 14px; min-height: 38px; }
+
 /* controls */
 
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
