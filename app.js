@@ -6,6 +6,12 @@ const LS = {
 };
 // actions the endpoint refuses without the seed password, once one is set
 const PRIV = ['seed', 'lock'];
+
+// Must match CONTRACT in valtown/api.ts. A page that has been open since before
+// a contract change never re-fetches its own script, so HTTP caching cannot
+// rescue it — the endpoint reports its version and we compare. Bump only when
+// old code would misbehave, never for cosmetic changes.
+const CONTRACT = 2;
 const VOID = ' void';
 const PEND = ' pend';
 
@@ -26,6 +32,7 @@ let NOTE = '';
 let AVK = 'color';
 let AVV = '';
 let AVPHOTO = '';
+let STALE = false;
 
 document.addEventListener('DOMContentLoaded', init);
 window.addEventListener('hashchange', render);
@@ -57,23 +64,29 @@ function writeLocal(ops) {
   try { localStorage.setItem(LS.ops, JSON.stringify(ops)); } catch (e) { /* quota */ }
 }
 
+const OFFLINE = 'Offline — showing the last synced copy.';
+
 async function loadOps() {
   if (!API) return readLocal();
   try {
     const r = await fetch(API, { headers: { accept: 'application/json' }, cache: 'no-store' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
+    if (typeof d.contract === 'number' && d.contract > CONTRACT) STALE = true;
     const ops = Array.isArray(d) ? d : (d.ops || []);
     writeLocal(ops);
-    NOTE = '';
+    // only clear our own offline notice: anything else is a message the
+    // caller just set and still needs to be shown
+    if (NOTE === OFFLINE) NOTE = '';
     return ops;
   } catch (e) {
-    NOTE = 'Offline — showing the last synced copy.';
+    NOTE = OFFLINE;
     return readLocal();
   }
 }
 
 async function pushOp(op) {
+  if (STALE) return render();
   op.at = new Date().toISOString();
 
   // the key travels with the request but is never kept in the log:
@@ -101,13 +114,14 @@ async function pushOp(op) {
     }
     OPS = await loadOps();
   } catch (e) {
+    // reload first so the rejected change is visibly rolled back, then report
+    OPS = await loadOps();
     if (e.message === 'wrong password') {
       forgetPass(op.tid);
-      NOTE = 'Wrong seed password — nothing changed.';
+      NOTE = 'That was the wrong seed password — nothing changed. Tap a nudge to try again.';
     } else {
-      NOTE = 'Saved here but not shared — the endpoint rejected it. (' + e.message + ')';
+      NOTE = 'Could not save that. (' + e.message + ')';
     }
-    OPS = await loadOps();
   }
   render();
 }
@@ -519,8 +533,17 @@ function roundLabel(br, r, wbRounds, lbRounds, format) {
 function render() {
   TS = reduceOps(OPS);
   const note = document.getElementById('note');
-  note.hidden = !NOTE;
-  note.textContent = NOTE;
+  if (STALE) {
+    note.hidden = false;
+    note.className = 'note stale';
+    note.innerHTML = '<strong>Pantopong has been updated.</strong> This page is running an ' +
+      'older version, so changes won\u2019t save. ' +
+      '<button id="reload-app" class="primary">Reload</button>';
+  } else {
+    note.hidden = !NOTE;
+    note.className = 'note';
+    note.textContent = NOTE;
+  }
   document.getElementById('api-input').value = API;
 
   const tid = currentTid();
@@ -716,6 +739,10 @@ function wire() {
       e.preventDefault();
       joinTournament();
     }
+  });
+
+  document.body.addEventListener('click', function (e) {
+    if (e.target.id === 'reload-app') location.reload();
   });
 
   document.body.addEventListener('input', function (e) {
