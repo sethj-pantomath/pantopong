@@ -1,6 +1,11 @@
 'use strict';
 
-const LS = { api: 'pantopong.api', pid: 'pantopong.pid', name: 'pantopong.name', ops: 'pantopong.ops.v2' };
+const LS = {
+  api: 'pantopong.api', pid: 'pantopong.pid', name: 'pantopong.name',
+  ops: 'pantopong.ops.v2', key: 'pantopong.key.'
+};
+// actions the endpoint refuses without the seed password, once one is set
+const PRIV = ['seed', 'lock'];
 const VOID = ' void';
 const PEND = ' pend';
 
@@ -70,20 +75,39 @@ async function loadOps() {
 
 async function pushOp(op) {
   op.at = new Date().toISOString();
+
+  // the key travels with the request but is never kept in the log:
+  // the endpoint strips it before storing, and the local copy drops it too
+  const send = Object.assign({}, op);
+  if (PRIV.indexOf(op.t) >= 0) {
+    const k = passFor(op.tid);
+    if (k) send.key = k;
+  }
+
   OPS.push(op);
   writeLocal(OPS);
   render();
   if (!API) return;
+
   try {
     const r = await fetch(API, {
       method: 'POST',
       headers: { 'content-type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(op)
+      body: JSON.stringify(send)
     });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (!r.ok) {
+      const d = await r.json().catch(function () { return {}; });
+      throw new Error(d.error || 'HTTP ' + r.status);
+    }
     OPS = await loadOps();
   } catch (e) {
-    NOTE = 'Saved here but not shared — the endpoint rejected it.';
+    if (e.message === 'wrong password') {
+      forgetPass(op.tid);
+      NOTE = 'Wrong seed password — nothing changed.';
+    } else {
+      NOTE = 'Saved here but not shared — the endpoint rejected it. (' + e.message + ')';
+    }
+    OPS = await loadOps();
   }
   render();
 }
@@ -103,7 +127,7 @@ function reduceOps(ops) {
         ts[op.tid] = {
           tid: op.tid, name: op.name, format: op.format === 'single' ? 'single' : 'double',
           host: op.pid, at: op.at, players: [], names: {}, avatars: {},
-          order: [], seeds: null, size: 0, results: {}
+          order: [], seeds: null, size: 0, results: {}, ph: null
         };
       }
       return;
@@ -126,6 +150,9 @@ function reduceOps(ops) {
       case 'seed':
         T.order = (op.order || []).slice();
         break;
+      case 'lock':
+        T.ph = op.ph || null;
+        break;
       case 'start':
         T.seeds = op.seeds.slice();
         T.size = op.size;
@@ -145,10 +172,45 @@ function reduceOps(ops) {
   return ts;
 }
 
-function currentTid() {
-  const h = location.hash.replace(/^#/, '');
-  return h.indexOf('t=') === 0 ? h.slice(2) : '';
+function hashParams() {
+  const out = {};
+  location.hash.replace(/^#/, '').split('&').forEach(function (kv) {
+    const i = kv.indexOf('=');
+    if (i > 0) out[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
+  });
+  return out;
 }
+
+function currentTid() { return hashParams().t || ''; }
+
+// ---------- seed password ----------
+
+// PBKDF2 rather than a bare hash: the op log is world-readable, so the stored
+// hash is public and a plain digest of a memorable phrase would be cheap to guess
+async function hashPass(tid, pass) {
+  const enc = new TextEncoder();
+  const km = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode('pantopong:' + tid), iterations: 100000, hash: 'SHA-256' },
+    km, 256
+  );
+  return Array.prototype.map.call(new Uint8Array(bits), function (b) {
+    return ('0' + b.toString(16)).slice(-2);
+  }).join('');
+}
+
+function passFor(tid) { return localStorage.getItem(LS.key + tid) || ''; }
+
+// asked once per browser, then remembered so nudging isn't a nag
+function askPass(tid, why) {
+  const held = passFor(tid);
+  if (held) return held;
+  const given = (prompt(why) || '').trim();
+  if (given) localStorage.setItem(LS.key + tid, given);
+  return given;
+}
+
+function forgetPass(tid) { localStorage.removeItem(LS.key + tid); }
 
 function nameOf(T, pid) { return T.names[pid] || 'Unknown'; }
 function joined(T) { return T.players.some(function (p) { return p.pid === PID; }); }
@@ -167,9 +229,24 @@ function moveSeed(T, pid, dir) {
   const i = order.indexOf(pid);
   const j = i + dir;
   if (i < 0 || j < 0 || j >= order.length) return;
+
+  if (T.ph && !askPass(T.tid, 'What\u2019s the seed password?')) return;
+
   order[i] = order[j];
   order[j] = pid;
   pushOp({ t: 'seed', tid: T.tid, order: order });
+}
+
+async function setSeedPassword(T) {
+  if (T.ph && !askPass(T.tid, 'Current seed password?')) return;
+  const next = (prompt(T.ph
+    ? 'New seed password (leave blank to remove the lock)'
+    : 'Set a seed password. Anyone without it can\u2019t reorder the bracket.') || '').trim();
+  if (next === '' && !T.ph) return;
+  const ph = next ? await hashPass(T.tid, next) : null;
+  if (next) localStorage.setItem(LS.key + T.tid, next);
+  else forgetPass(T.tid);
+  pushOp({ t: 'lock', tid: T.tid, ph: ph });
 }
 
 // ---------- avatars ----------
@@ -520,8 +597,12 @@ function viewLobby(T) {
           ? '<button class="x" data-drop="' + esc(pid) + '" title="Remove">×</button>' : '') +
         '</li>';
     }).join('') + '</ol>' +
-      '<p class="hint">Seed 1 plays the lowest seed. Nudge people up or down to set the ' +
-      'bracket — everyone sees the same order.</p>' : '') +
+      '<p class="hint">Seed 1 plays the lowest seed. ' + (T.ph
+        ? 'Reordering asks for the seed password.'
+        : 'Anyone can reorder — everyone sees the same order.') + '</p>' +
+      '<div class="row"><button data-pass="1" class="ghost">' +
+      (T.ph ? '\uD83D\uDD12 Change seed password' : 'Password-protect seeding') +
+      '</button></div>' : '') +
 
     (mine ? '' :
       '<form id="join-form" class="joinbox">' +
@@ -667,12 +748,14 @@ function wire() {
       return;
     }
 
-    const t = e.target.closest('[data-pick],[data-start],[data-drop],[data-reset],#copy-link');
+    const t = e.target.closest('[data-pick],[data-start],[data-drop],[data-reset],[data-pass],#copy-link');
     if (!t) return;
     const T = TS[currentTid()];
     const d = t.dataset;
 
-    if (t.id === 'copy-link') {
+    if (d.pass && T) {
+      setSeedPassword(T);
+    } else if (t.id === 'copy-link') {
       shareOrCopy(T, joinLink(currentTid()));
     } else if (d.pick && T) {
       const cur = T.results[d.slot];

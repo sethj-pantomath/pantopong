@@ -111,8 +111,21 @@ the creator can remove anyone. Nobody signs in.
 
 Avatars appear in the lobby, in every bracket slot, and on the champion banner.
 
-**Start** — random seeds or join order. Anyone can start it. Field sizes that aren't a
-power of two give byes to the top seeds.
+**Seed** — the lobby lists players in seed order with nudge controls. Order is a shared op,
+so everyone sees the same seeding. Seed 1 plays the lowest seed, and the top seeds take the
+byes when the field isn't a power of two.
+
+**Seed password** (optional) — anyone can set one from the lobby. After that, reordering
+prompts for it, and the **endpoint** refuses a `seed` or `lock` op without it. That gating
+is deliberately server-side: identity here is a self-asserted id in `localStorage`, so
+hiding buttons would stop nobody. Joining, starting, and clicking results stay open.
+
+The password is hashed with PBKDF2 (100k iterations, salted per tournament) because the op
+log is world-readable — a bare digest of a memorable phrase would be cheap to guess. The
+password itself is stripped before the op is stored, and remembered per browser so nudging
+isn't a nag. A rejected attempt forgets it so the next try re-prompts.
+
+**Start** — seeded order or shuffle. Anyone can start it.
 
 **Play** — tap a name to advance them, tap the winner again to undo. Champion gets a
 banner. Back to lobby clears results and lets you reseed.
