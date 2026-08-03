@@ -293,6 +293,21 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
 .poolcta .mut { color: var(--faint); }
 .pw { color: var(--gold); font-weight: 800; }
 tbody tr.me { background: rgba(240,180,41,.07); }
+tbody tr.rowlink { cursor: pointer; }
+tbody tr.rowlink:hover { background: rgba(255,255,255,.05); }
+@media (prefers-color-scheme: light) {
+  tbody tr.rowlink:hover { background: rgba(0,0,0,.04); }
+}
+
+/* one entry's bracket, marked against what actually happened */
+.side.won.open { background: rgba(240,180,41,.10); }
+.side.won.open > span { color: var(--text); }
+.side.won.hit { background: rgba(55,201,138,.14); }
+.side.won.miss { background: rgba(239,91,107,.13); }
+.side.won.miss > span { color: var(--loss, #ef5b6b); text-decoration: line-through; }
+.side.won.moot { background: var(--sunk); }
+.side.won.moot > span { color: var(--faint); }
+.side b.x { color: var(--loss, #ef5b6b); }
 .badge {
   display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 9px;
   letter-spacing: .08em; text-transform: uppercase; font-weight: 800;
