@@ -137,6 +137,33 @@ No scores — just who won. Add them later if the league misses them.
 The bracket page carries the house rules: best 2 of 3 to 11, serve switches every 2, unlimited
 lets, and at 10-10 serve switches every point until someone wins by 2.
 
+## Bracket pool
+
+Anyone can fill out a predicted bracket from the bracket page, players and
+non-players alike, and every entry is scored live on a leaderboard underneath.
+
+Points double each round so each round is worth about the same overall: 1 for a
+round-1 pick, 2, 4, then 8 for the final. A 15-player field is 14 matches and 31
+points.
+
+**An entry only earns matches decided after it was submitted.** That is what makes
+the pool usable mid-tournament: entering late is allowed but costs you every match
+already played, so there is nothing to gain by waiting and no lock step anyone has
+to remember. Picks are public, because the scoring rule already removes any
+advantage from copying — an earlier attempt sealed them until each match resolved,
+which bought nothing and made max-reachable, busted and champion-pick
+uncomputable for anyone but yourself.
+
+**Max** is the most an entry can still reach. It drops when a player they picked is
+eliminated, so a bracket can be mathematically finished while still sitting near
+the top of the table.
+
+Draft picks live in `localStorage` until submitted, so clearing browser data before
+submitting loses the draft.
+
+The app polls every 30s while the tab is visible, and immediately on refocus, so a
+leaderboard people are watching actually moves.
+
 ## Bracket
 
 Standard elimination. Double: winners bracket of *n*−1 slots, losers bracket of *n*−2, the

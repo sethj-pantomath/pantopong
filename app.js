@@ -6,12 +6,13 @@ const LS = {
 };
 // actions the endpoint refuses without the seed password, once one is set
 const PRIV = ['seed', 'format', 'lock'];
+const POOL_POINTS = [0, 1, 2, 4, 8, 16];
 
 // Must match CONTRACT in valtown/api.ts. A page that has been open since before
 // a contract change never re-fetches its own script, so HTTP caching cannot
 // rescue it — the endpoint reports its version and we compare. Bump only when
 // old code would misbehave, never for cosmetic changes.
-const CONTRACT = 3;
+const CONTRACT = 4;
 const VOID = ' void';
 const PEND = ' pend';
 
@@ -33,6 +34,7 @@ let AVK = 'color';
 let AVV = '';
 let AVPHOTO = '';
 let STALE = false;
+let POOLVIEW = false;
 
 document.addEventListener('DOMContentLoaded', init);
 window.addEventListener('hashchange', render);
@@ -52,6 +54,7 @@ async function init() {
   OPS = await loadOps();
   wire();
   render();
+  startPolling();
 }
 
 // ---------- persistence ----------
@@ -126,6 +129,18 @@ async function pushOp(op) {
   render();
 }
 
+// nothing here polled before, so a leaderboard would have sat frozen while
+// people stared at it. Only while the tab is visible, plus an immediate pull
+// on refocus.
+function startPolling() {
+  setInterval(function () {
+    if (!document.hidden && API && !STALE) refresh();
+  }, 30000);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && API && !STALE) refresh();
+  });
+}
+
 async function refresh() {
   OPS = await loadOps();
   render();
@@ -141,7 +156,7 @@ function reduceOps(ops) {
         ts[op.tid] = {
           tid: op.tid, name: op.name, format: op.format === 'single' ? 'single' : 'double',
           host: op.pid, at: op.at, players: [], names: {}, avatars: {},
-          order: [], seeds: null, size: 0, results: {}, ph: null
+          order: [], seeds: null, size: 0, results: {}, ph: null, entries: {}
         };
       }
       return;
@@ -163,6 +178,15 @@ function reduceOps(ops) {
         break;
       case 'seed':
         T.order = (op.order || []).slice();
+        break;
+      case 'pick':
+        // last entry per person wins; `at` is what stops a late entry
+        // scoring matches that were already decided when it arrived
+        T.entries[op.pid] = {
+          pid: op.pid, name: op.name, picks: op.picks || {},
+          total: op.total != null ? op.total : Object.keys(op.picks || {}).length,
+          at: op.at
+        };
         break;
       case 'format':
         if (!T.seeds) T.format = op.f === 'single' ? 'single' : 'double';
@@ -216,6 +240,16 @@ async function hashPass(tid, pass) {
   }).join('');
 }
 
+function draftKey(tid) { return 'pantopong.picks.' + tid; }
+
+function loadDraft(tid) {
+  try { return JSON.parse(localStorage.getItem(draftKey(tid))) || {}; } catch (e) { return {}; }
+}
+
+function saveDraft(tid, picks) {
+  try { localStorage.setItem(draftKey(tid), JSON.stringify(picks)); } catch (e) { /* quota */ }
+}
+
 function passFor(tid) { return localStorage.getItem(LS.key + tid) || ''; }
 
 // asked once per browser, then remembered so nudging isn't a nag
@@ -252,6 +286,23 @@ function moveSeed(T, pid, dir) {
   order[i] = order[j];
   order[j] = pid;
   pushOp({ t: 'seed', tid: T.tid, order: order });
+}
+
+function poolAction(T, what) {
+  if (what === 'open') { POOLVIEW = true; return render(); }
+  if (what === 'close') { POOLVIEW = false; return render(); }
+  if (what === 'clear') { saveDraft(T.tid, {}); return render(); }
+  if (what !== 'submit') return;
+
+  const picks = loadDraft(T.tid);
+  const name = (T.names[PID] || MYNAME || '').trim() ||
+    (prompt('Whats your name for the leaderboard?') || '').trim();
+  if (!name) return;
+  MYNAME = name;
+  localStorage.setItem(LS.name, name);
+  POOLVIEW = false;
+  pushOp({ t: 'pick', tid: T.tid, pid: PID, name: name, picks: picks });
+  NOTE = 'Bracket submitted. You can change it until each match is played.';
 }
 
 async function setSeedPassword(T) {
@@ -434,7 +485,15 @@ function buildSlots(size, format) {
   return { slots: slots, wbRounds: wbRounds, lbRounds: lr, finalId: 'GF' };
 }
 
+function resolvePicks(T, picks) {
+  return resolveSlots(T, picks || {});
+}
+
 function resolveBracket(T) {
+  return resolveSlots(T, T.results);
+}
+
+function resolveSlots(T, results) {
   const built = buildSlots(T.size, T.format);
   const seeds = T.seeds;
   const byId = {};
@@ -479,7 +538,7 @@ function resolveBracket(T) {
       s.seedA = seeds.indexOf(s.pa) + 1;
       s.seedB = seeds.indexOf(s.pb) + 1;
       s.ready = true;
-      const rw = T.results[s.id];
+      const rw = results[s.id];
       if (rw === s.pa || rw === s.pb) {
         won[s.id] = rw;
         lost[s.id] = rw === s.pa ? s.pb : s.pa;
@@ -506,7 +565,7 @@ function resolveBracket(T) {
       won[s.id] = b; lost[s.id] = VOID; s.bye = true;
     } else {
       s.ready = true;
-      const w = T.results[s.id];
+      const w = results[s.id];
       if (w === a || w === b) {
         won[s.id] = w;
         lost[s.id] = w === a ? b : a;
@@ -666,6 +725,87 @@ function viewLobby(T) {
     + '</section>';
 }
 
+// ---------- pool ----------
+
+// round depth decides the points, so a Final pick is worth more than a Round 1
+function slotWeight(T, slotId, built) {
+  const s = built.slots.filter(function (x) { return x.id === slotId; })[0];
+  if (!s) return 0;
+  const depth = s.br === 'F' ? built.wbRounds + 1 : s.r;
+  return POOL_POINTS[Math.min(depth, POOL_POINTS.length - 1)] || 0;
+}
+
+// when each real result landed, so an entry can be scored only on matches
+// decided after it was submitted
+function decidedAt(T) {
+  const when = {};
+  OPS.forEach(function (op) {
+    if (op.tid !== T.tid) return;
+    if (op.t === 'start' || op.t === 'reset') Object.keys(when).forEach(function (k) { delete when[k]; });
+    if (op.t === 'result') {
+      if (op.winner) when[op.slot] = op.at;
+      else delete when[op.slot];
+    }
+  });
+  return when;
+}
+
+function stillAlive(T, built) {
+  const out = {};
+  T.seeds.forEach(function (p) { out[p] = true; });
+  built.slots.forEach(function (s) {
+    if (s.won && s.pa && s.pb) out[s.won === s.pa ? s.pb : s.pa] = false;
+  });
+  return out;
+}
+
+function poolStandings(T) {
+  const built = resolveBracket(T);
+  const when = decidedAt(T);
+  const alive = stillAlive(T, built);
+  // every real match, not just the ones already on the board: a later round
+  // still counts toward what an entry can reach
+  const all = built.slots.filter(function (s) { return !s.dead && !s.bye; });
+
+  const rows = Object.keys(T.entries).map(function (pid) {
+    const e = T.entries[pid];
+    let pts = 0, hit = 0, scorable = 0, ceiling = 0;
+
+    all.forEach(function (s) {
+      const w = slotWeight(T, s.id, built);
+      const pick = e.picks[s.id];
+      const settled = !!when[s.id];
+      // an entry submitted after a result cannot earn that match
+      const eligible = !settled || e.at <= when[s.id];
+
+      if (settled) {
+        if (eligible) {
+          scorable++;
+          if (pick && pick === s.won) { pts += w; hit++; ceiling += w; }
+        }
+      } else if (pick && alive[pick] !== false) {
+        // only still reachable if whoever you picked is still in it
+        ceiling += w;
+      }
+    });
+
+    const champSlot = built.finalId;
+    const champPick = e.picks[champSlot] || null;
+    return {
+      pid: pid, name: e.name, pts: pts, hit: hit, scorable: scorable,
+      max: ceiling, total: e.total, at: e.at,
+      champPick: champPick,
+      busted: !!(champPick && alive[champPick] === false)
+    };
+  });
+
+  rows.sort(function (a, b) {
+    return (b.pts - a.pts) || (b.max - a.max) || (b.hit - a.hit) ||
+      (a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
+  });
+  return rows;
+}
+
 function rulesPanel() {
   return '<section class="panel"><h2>Rules</h2><ul class="rules">' +
     '<li><strong>Best 2 of 3</strong> games, games to <strong>11</strong></li>' +
@@ -673,6 +813,112 @@ function rulesPanel() {
     '<li><strong>Unlimited lets</strong></li>' +
     '<li>At <strong>10\u201310</strong>, switch serve every serve until someone <strong>wins by 2</strong></li>' +
     '</ul></section>';
+}
+
+function poolPanel(T) {
+  const rows = poolStandings(T);
+  const mine = T.entries[PID];
+  const built = resolveBracket(T);
+  const totalMatches = built.slots.filter(function (s) { return !s.dead && !s.bye; }).length;
+  const draft = loadDraft(T.tid);
+  const picked = Object.keys(draft).length;
+
+  let head = '<section class="panel"><h2>Bracket pool</h2>';
+
+  if (POOLVIEW) {
+    return head + poolPicker(T, built, draft, picked, totalMatches) + '</section>' + poolBoard(rows, T);
+  }
+
+  head += '<div class="poolcta">' +
+    (mine
+      ? '<div><strong>Youre in.</strong> <span class="mut">' + mine.total + ' of ' + totalMatches +
+        ' picked.</span></div><button data-pool="open">Change my picks</button>'
+      : '<div><strong>Fill out a bracket 🏓</strong> <span class="mut">' +
+        (picked ? picked + ' of ' + totalMatches + ' picked so far' : 'Predict the whole thing and see how you stack up.') +
+        '</span></div><button class="primary" data-pool="open">' +
+        (picked ? 'Finish my bracket' : 'Fill out a bracket') + '</button>') +
+    '</div>' +
+    '<p class="hint">Everyone can see everyone\u2019s picks. Fairness comes from the scoring ' +
+    'instead: an entry only earns matches decided <em>after</em> it was submitted, so you can ' +
+    'still enter mid-tournament, it just costs you the matches already played. ' +
+    'R1 1pt, R2 2pts, semis 4, final 8.</p></section>';
+
+  return head + poolBoard(rows, T);
+}
+
+function poolPicker(T, real, draft, picked, totalMatches) {
+  const pb = resolvePicks(T, draft);
+  const groups = {};
+  pb.slots.forEach(function (s) {
+    if (s.hidden || s.dead || s.bye) return;
+    const k = s.br + s.r;
+    (groups[k] = groups[k] || { br: s.br, r: s.r, slots: [] }).slots.push(s);
+  });
+
+  let html = '<p class="hint">Tap who you think wins each match. Your picks carry forward. ' +
+    picked + ' of ' + totalMatches + ' done.</p>';
+
+  ['W', 'L', 'F'].forEach(function (br) {
+    const rounds = Object.keys(groups).filter(function (k) { return groups[k].br === br; })
+      .map(function (k) { return groups[k]; }).sort(function (x, y) { return x.r - y.r; });
+    if (!rounds.length) return;
+    html += '<div class="bscroll"><div class="rounds">' + rounds.map(function (g) {
+      return '<div class="round"><h3>' +
+        roundLabel(g.br, g.r, pb.wbRounds, pb.lbRounds, T.format) +
+        ' <span class="pw">' + slotWeight(T, g.slots[0].id, real) + 'p</span></h3><div class="slots">' +
+        g.slots.map(function (s) { return pickSlotHtml(T, s, draft); }).join('') +
+        '</div></div>';
+    }).join('') + '</div></div>';
+  });
+
+  html += '<div class="row" style="margin-top:14px">' +
+    '<button class="primary big" data-pool="submit"' + (picked < totalMatches ? ' disabled' : '') + '>' +
+    (picked < totalMatches ? 'Pick all ' + totalMatches + ' to submit' : 'Submit my bracket') + '</button>' +
+    '<button data-pool="clear">Clear</button>' +
+    '<button class="ghost" data-pool="close">Done</button></div>';
+  return html;
+}
+
+function pickSlotHtml(T, s, draft) {
+  const chosen = draft[s.id];
+  function side(p) {
+    if (!p) return '<div class="side tbd"><i></i><span>TBD</span></div>';
+    const on = chosen === p;
+    return '<button class="side pick' + (on ? ' won' : '') + '" data-pickslot="' + esc(s.id) +
+      '" data-pickwin="' + esc(p) + '">' +
+      '<i>' + (T.seeds.indexOf(p) + 1) + '</i>' + avatarOf(T, p, 'sm') +
+      '<span>' + esc(nameOf(T, p)) + '</span>' + (on ? '<b>✓</b>' : '') + '</button>';
+  }
+  return '<div class="slot' + (chosen ? ' done' : s.ready ? ' ready' : '') + '">' +
+    side(s.pa) + side(s.pb) + '</div>';
+}
+
+function poolBoard(rows, T) {
+  if (!rows.length) return '';
+  const anyScored = rows.some(function (r) { return r.scorable > 0; });
+  return '<section class="panel"><h2>Leaderboard · ' + rows.length + ' bracket' +
+    (rows.length === 1 ? '' : 's') + '</h2>' +
+    '<div class="tscroll"><table><thead><tr>' +
+    '<th class="l">#</th><th class="l">Bracket</th><th>Pts</th><th>Correct</th>' +
+    '<th>Max</th><th class="l">Champion</th>' +
+    '</tr></thead><tbody>' +
+    rows.map(function (r, i) {
+      return '<tr' + (r.pid === PID ? ' class="me"' : '') + '>' +
+        '<td class="rank">' + (i + 1) + '</td>' +
+        '<td class="who">' + esc(r.name) + (r.pid === PID ? ' <span class="badge">you</span>' : '') +
+        (r.busted ? ' <span class="badge out">busted</span>' : '') + '</td>' +
+        '<td class="strong">' + r.pts + '</td>' +
+        '<td class="mut">' + (r.scorable ? r.hit + '/' + r.scorable : '–') + '</td>' +
+        '<td>' + r.max + '</td>' +
+        '<td class="l' + (r.champPick ? '' : ' mut') + '">' +
+        (r.champPick ? esc(nameOf(T, r.champPick)) : 'no pick') + '</td>' +
+        '</tr>';
+    }).join('') +
+    '</tbody></table></div>' +
+    '<p class="hint">' + (anyScored
+      ? 'Max is the most you can still reach. It drops when someone you picked goes out, ' +
+        'so a bracket can be mathematically done while still sitting near the top.'
+      : 'Nothing scored yet. Points land as matches get decided.') + '</p></section>';
 }
 
 function viewBracket(T) {
@@ -712,6 +958,7 @@ function viewBracket(T) {
       }).join('') + '</div></div></section>';
   });
 
+  html += poolPanel(T);
   html += '<section class="panel"><p class="hint">Tap a name to advance them. ' +
     'Tap the winner again to undo.</p><div class="row">' +
     '<button class="ghost" data-reset="1">Back to lobby</button></div></section>';
@@ -784,6 +1031,32 @@ function wire() {
   });
 
   document.body.addEventListener('click', function (e) {
+    const ps = e.target.closest('[data-pickslot]');
+    if (ps) {
+      const T2 = TS[currentTid()];
+      if (T2) {
+        const d = loadDraft(T2.tid);
+        const slot = ps.dataset.pickslot, win = ps.dataset.pickwin;
+        if (d[slot] === win) delete d[slot];
+        else d[slot] = win;
+        // a changed pick invalidates anything downstream that depended on it
+        const pb = resolvePicks(T2, d);
+        pb.slots.forEach(function (s2) {
+          if (d[s2.id] && s2.pa !== d[s2.id] && s2.pb !== d[s2.id]) delete d[s2.id];
+        });
+        saveDraft(T2.tid, d);
+        render();
+      }
+      return;
+    }
+
+    const pool = e.target.closest('[data-pool]');
+    if (pool) {
+      const T2 = TS[currentTid()];
+      if (T2) poolAction(T2, pool.dataset.pool);
+      return;
+    }
+
     const nudge = e.target.closest('[data-up],[data-down]');
     if (nudge) {
       const T2 = TS[currentTid()];
