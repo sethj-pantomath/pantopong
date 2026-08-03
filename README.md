@@ -163,12 +163,16 @@ decided when the bracket was submitted and so counts for nobody.
 eliminated, so a bracket can be mathematically finished while still sitting near
 the top of the table.
 
-**An entry freezes once the first match is decided.** Scoring credits an entry only for
-matches decided after it was submitted, and a re-submission carries a new timestamp, so
-editing a live entry would silently forfeit every point it had already earned. The
-endpoint refuses the write rather than relying on the button being hidden. A brand new
-entry is still accepted at any time: a latecomer has nothing to lose, and giving up the
-matches already played is the intended cost.
+**One bracket each, and no edits.** Scoring credits an entry only for matches decided
+after it was submitted, and a re-submission carries a new timestamp, so re-submitting
+silently forfeited points already earned. Rather than police when an edit is safe, there
+are no edits: the endpoint refuses a second write, so a stale tab cannot do it either.
+Submitting asks for confirmation, since it cannot be undone.
+
+A first entry is accepted at any time, including mid-tournament: a latecomer has nothing
+to lose, and giving up the matches already played is the intended cost. A `reset`
+rebuilds the bracket and invalidates every prediction against it, so it clears the pool
+and lets everyone enter again.
 
 Draft picks live in `localStorage` until submitted, so clearing browser data before
 submitting loses the draft.
