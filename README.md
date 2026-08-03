@@ -163,6 +163,13 @@ decided when the bracket was submitted and so counts for nobody.
 eliminated, so a bracket can be mathematically finished while still sitting near
 the top of the table.
 
+**An entry freezes once the first match is decided.** Scoring credits an entry only for
+matches decided after it was submitted, and a re-submission carries a new timestamp, so
+editing a live entry would silently forfeit every point it had already earned. The
+endpoint refuses the write rather than relying on the button being hidden. A brand new
+entry is still accepted at any time: a latecomer has nothing to lose, and giving up the
+matches already played is the intended cost.
+
 Draft picks live in `localStorage` until submitted, so clearing browser data before
 submitting loses the draft.
 
