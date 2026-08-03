@@ -35,6 +35,7 @@ let AVV = '';
 let AVPHOTO = '';
 let STALE = false;
 let POOLVIEW = false;
+let VIEWPICKS = '';
 
 document.addEventListener('DOMContentLoaded', init);
 window.addEventListener('hashchange', render);
@@ -815,6 +816,75 @@ function rulesPanel() {
     '</ul></section>';
 }
 
+function viewEntry(T, pid) {
+  const e = T.entries[pid];
+  if (!e) { VIEWPICKS = ''; return ''; }
+
+  const real = resolveBracket(T);
+  const pb = resolvePicks(T, e.picks);
+  const when = decidedAt(T);
+  const row = poolStandings(T).filter(function (r) { return r.pid === pid; })[0] || {};
+
+  const groups = {};
+  pb.slots.forEach(function (s) {
+    if (s.hidden || s.dead || s.bye) return;
+    const k = s.br + s.r;
+    (groups[k] = groups[k] || { br: s.br, r: s.r, slots: [] }).slots.push(s);
+  });
+
+  let html = '<section class="panel head">' +
+    '<div><h2>Bracket</h2><h1>' + esc(e.name) + '</h1>' +
+    '<p class="sub">' + row.pts + ' pts · ' +
+    (row.scorable ? row.hit + ' of ' + row.scorable + ' right' : 'nothing scored yet') +
+    ' · max ' + row.max + (row.busted ? ' · busted' : '') + '</p></div>' +
+    '<button data-viewpicks="" class="ghost">Back</button></section>';
+
+  ['W', 'L', 'F'].forEach(function (br) {
+    const rounds = Object.keys(groups).filter(function (k) { return groups[k].br === br; })
+      .map(function (k) { return groups[k]; }).sort(function (x, y) { return x.r - y.r; });
+    if (!rounds.length) return;
+    html += '<section class="panel wide"><div class="bscroll"><div class="rounds">' +
+      rounds.map(function (g) {
+        return '<div class="round"><h3>' +
+          roundLabel(g.br, g.r, pb.wbRounds, pb.lbRounds, T.format) + '</h3><div class="slots">' +
+          g.slots.map(function (s) {
+            return entrySlotHtml(T, s, e, real, when);
+          }).join('') + '</div></div>';
+      }).join('') + '</div></div></section>';
+  });
+
+  return html + '<section class="panel"><p class="hint">' +
+    'A green tick is a pick that came in, a red cross is one that did not. Greyed out means ' +
+    'the match was already decided when this bracket was submitted, so it does not count ' +
+    'either way.</p></section>';
+}
+
+function entrySlotHtml(T, s, e, real, when) {
+  const pick = e.picks[s.id];
+  const actual = T.results[s.id];
+  const settled = !!when[s.id];
+  const counts = !settled || e.at <= when[s.id];
+
+  // green has to mean "came in", so an undecided pick gets its own neutral
+  // highlight rather than borrowing the winner styling
+  let mark = '', cls = ' open';
+  if (settled && pick) {
+    if (!counts) { mark = '<b class="mut">–</b>'; cls = ' moot'; }
+    else if (pick === actual) { mark = '<b>✓</b>'; cls = ' hit'; }
+    else { mark = '<b class="x">✗</b>'; cls = ' miss'; }
+  }
+
+  function side(p) {
+    if (!p) return '<div class="side tbd"><i></i><span>TBD</span></div>';
+    const chosen = pick === p;
+    return '<div class="side' + (chosen ? ' won' + cls : '') + '">' +
+      '<i>' + (T.seeds.indexOf(p) + 1) + '</i>' + avatarOf(T, p, 'sm') +
+      '<span>' + esc(nameOf(T, p)) + '</span>' + (chosen ? mark : '') + '</div>';
+  }
+  return '<div class="slot' + (settled && counts ? ' done' : '') + '">' +
+    side(s.pa) + side(s.pb) + '</div>';
+}
+
 function poolPanel(T) {
   const rows = poolStandings(T);
   const mine = T.entries[PID];
@@ -903,7 +973,8 @@ function poolBoard(rows, T) {
     '<th>Max</th><th class="l">Champion</th>' +
     '</tr></thead><tbody>' +
     rows.map(function (r, i) {
-      return '<tr' + (r.pid === PID ? ' class="me"' : '') + '>' +
+      return '<tr class="rowlink' + (r.pid === PID ? ' me' : '') +
+        '" data-viewpicks="' + esc(r.pid) + '">' +
         '<td class="rank">' + (i + 1) + '</td>' +
         '<td class="who">' + esc(r.name) + (r.pid === PID ? ' <span class="badge">you</span>' : '') +
         (r.busted ? ' <span class="badge out">busted</span>' : '') + '</td>' +
@@ -915,7 +986,7 @@ function poolBoard(rows, T) {
         '</tr>';
     }).join('') +
     '</tbody></table></div>' +
-    '<p class="hint">' + (anyScored
+    '<p class="hint">Tap any row to see that bracket. ' + (anyScored
       ? 'Max is the most you can still reach. It drops when someone you picked goes out, ' +
         'so a bracket can be mathematically done while still sitting near the top.'
       : 'Nothing scored yet. Points land as matches get decided.') + '</p></section>';
@@ -958,6 +1029,7 @@ function viewBracket(T) {
       }).join('') + '</div></div></section>';
   });
 
+  if (VIEWPICKS && T.entries[VIEWPICKS]) return viewEntry(T, VIEWPICKS);
   html += poolPanel(T);
   html += '<section class="panel"><p class="hint">Tap a name to advance them. ' +
     'Tap the winner again to undo.</p><div class="row">' +
@@ -1048,6 +1120,14 @@ function wire() {
         render();
       }
       return;
+    }
+
+    const vp = e.target.closest('[data-viewpicks]');
+    if (vp) {
+      VIEWPICKS = vp.dataset.viewpicks || '';
+      POOLVIEW = false;
+      window.scrollTo(0, 0);
+      return render();
     }
 
     const pool = e.target.closest('[data-pool]');

@@ -154,6 +154,11 @@ advantage from copying — an earlier attempt sealed them until each match resol
 which bought nothing and made max-reachable, busted and champion-pick
 uncomputable for anyone but yourself.
 
+Any row on the leaderboard opens that person's bracket, marked against what has
+actually happened: a green tick for a pick that came in, a red cross for one that
+did not, amber for still to come, and greyed out for a match that was already
+decided when the bracket was submitted and so counts for nobody.
+
 **Max** is the most an entry can still reach. It drops when a player they picked is
 eliminated, so a bracket can be mathematically finished while still sitting near
 the top of the table.
