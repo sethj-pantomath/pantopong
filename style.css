@@ -57,6 +57,16 @@ h1, .sub, .chips li, .tlist, .side span, .hint, .note, .champ, input {
   padding: 0 max(18px, env(safe-area-inset-left)) 0 max(18px, env(safe-area-inset-right));
 }
 
+/* A bracket wants width, so give the column much more of a desktop window.
+   Linear content is capped separately below: a name on the far left with its
+   controls 1100px away is worse than a narrow column, so only the bracket
+   actually spends the extra room. */
+@media (min-width: 1024px) {
+  .wrap { max-width: 1240px; }
+  .seedlist, .rules, .linkbox, .joinbox, .seg,
+  .hero form, .settings .field, .settings .row, .tlist { max-width: 780px; }
+}
+
 header {
   border-bottom: 1px solid var(--line);
   background: var(--panel);
@@ -300,13 +310,27 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
 /* bracket */
 
 .bscroll {
-  overflow-x: auto; padding-bottom: 6px;
+  overflow-x: auto; padding-bottom: 10px;
   -webkit-overflow-scrolling: touch;
   scroll-snap-type: x proximity;
   overscroll-behavior-x: contain;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
 }
-.bscroll::-webkit-scrollbar { display: none; }
+.bscroll::-webkit-scrollbar { height: 10px; }
+.bscroll::-webkit-scrollbar-track { background: transparent; }
+.bscroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; }
+.bscroll::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+
+/* A touch device shows no persistent scrollbar anyway and swiping is the
+   obvious gesture, so reclaim the space there. On a pointer device the
+   scrollbar is the only cue that a wide bracket continues past the edge —
+   hiding it was what made the last column look truncated rather than
+   scrollable. */
+@media (hover: none) and (pointer: coarse) {
+  .bscroll { scrollbar-width: none; padding-bottom: 4px; }
+  .bscroll::-webkit-scrollbar { display: none; }
+}
 .rounds { display: flex; gap: 22px; min-width: min-content; }
 .round {
   display: flex; flex-direction: column; min-width: 196px;
