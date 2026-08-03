@@ -120,7 +120,9 @@ async function pushOp(op) {
   } catch (e) {
     // reload first so the rejected change is visibly rolled back, then report
     OPS = await loadOps();
-    if (e.message === 'wrong password') {
+    if (e.message === 'entry locked') {
+      NOTE = 'Your bracket is locked now that play has started, so that change was not saved.';
+    } else if (e.message === 'wrong password') {
       forgetPass(op.tid);
       NOTE = 'That was the wrong seed password — nothing changed. Tap a nudge to try again.';
     } else {
@@ -294,6 +296,11 @@ function poolAction(T, what) {
   if (what === 'close') { POOLVIEW = false; return render(); }
   if (what === 'clear') { saveDraft(T.tid, {}); return render(); }
   if (what !== 'submit') return;
+  if (T.entries[PID] && poolFrozen(T)) {
+    NOTE = 'Your bracket is locked now that play has started.';
+    POOLVIEW = false;
+    return render();
+  }
 
   const picks = loadDraft(T.tid);
   const name = (T.names[PID] || MYNAME || '').trim() ||
@@ -885,6 +892,10 @@ function entrySlotHtml(T, s, e, real, when) {
     side(s.pa) + side(s.pb) + '</div>';
 }
 
+function poolFrozen(T) {
+  return Object.keys(T.results).some(function (k) { return !!T.results[k]; });
+}
+
 function poolPanel(T) {
   const rows = poolStandings(T);
   const mine = T.entries[PID];
@@ -899,18 +910,30 @@ function poolPanel(T) {
     return head + poolPicker(T, built, draft, picked, totalMatches) + '</section>' + poolBoard(rows, T);
   }
 
+  const frozen = poolFrozen(T);
+  const settled = Object.keys(T.results).filter(function (k) { return !!T.results[k]; }).length;
+
   head += '<div class="poolcta">' +
     (mine
       ? '<div><strong>Youre in.</strong> <span class="mut">' + mine.total + ' of ' + totalMatches +
-        ' picked.</span></div><button data-pool="open">Change my picks</button>'
+        ' picked.' + (frozen ? ' Locked \u2014 play has started.' : '') + '</span></div>' +
+        (frozen ? '' : '<button data-pool="open">Change my picks</button>')
       : '<div><strong>Fill out a bracket 🏓</strong> <span class="mut">' +
-        (picked ? picked + ' of ' + totalMatches + ' picked so far' : 'Predict the whole thing and see how you stack up.') +
+        (picked ? picked + ' of ' + totalMatches + ' picked so far'
+          : 'Predict the whole thing and see how you stack up.') +
         '</span></div><button class="primary" data-pool="open">' +
         (picked ? 'Finish my bracket' : 'Fill out a bracket') + '</button>') +
     '</div>' +
-    '<p class="hint">Everyone can see everyone\u2019s picks. Fairness comes from the scoring ' +
-    'instead: an entry only earns matches decided <em>after</em> it was submitted, so you can ' +
-    'still enter mid-tournament, it just costs you the matches already played. ' +
+    '<p class="hint">' +
+    (mine && frozen
+      ? 'Brackets lock once the first match is decided, so nobody can rewrite history. '
+      : mine
+        ? 'You can change your bracket freely until the first match is decided. '
+        : settled
+          ? 'You can still enter, but the ' + settled + ' match' + (settled === 1 ? '' : 'es') +
+            ' already played wont count for you. '
+          : 'Everyone can see everyone\u2019s picks \u2014 the scoring is what keeps it fair. ') +
+    'An entry only earns matches decided <em>after</em> it was submitted. ' +
     'R1 1pt, R2 2pts, semis 4, final 8.</p></section>';
 
   return head + poolBoard(rows, T);
