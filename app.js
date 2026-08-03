@@ -5,13 +5,13 @@ const LS = {
   ops: 'pantopong.ops.v2', key: 'pantopong.key.'
 };
 // actions the endpoint refuses without the seed password, once one is set
-const PRIV = ['seed', 'lock'];
+const PRIV = ['seed', 'format', 'lock'];
 
 // Must match CONTRACT in valtown/api.ts. A page that has been open since before
 // a contract change never re-fetches its own script, so HTTP caching cannot
 // rescue it — the endpoint reports its version and we compare. Bump only when
 // old code would misbehave, never for cosmetic changes.
-const CONTRACT = 2;
+const CONTRACT = 3;
 const VOID = ' void';
 const PEND = ' pend';
 
@@ -163,6 +163,9 @@ function reduceOps(ops) {
         break;
       case 'seed':
         T.order = (op.order || []).slice();
+        break;
+      case 'format':
+        if (!T.seeds) T.format = op.f === 'single' ? 'single' : 'double';
         break;
       case 'lock':
         T.ph = op.ph || null;
@@ -355,6 +358,11 @@ function pairingOrder(size) {
     o = next;
   }
   return o;
+}
+
+function matchCount(n, format) {
+  if (n < 2) return 0;
+  return format === 'single' ? n - 1 : 2 * n - 2;
 }
 
 function bracketSize(n, format) {
@@ -640,12 +648,21 @@ function viewLobby(T) {
     '<section class="panel">' +
     (n < 2
       ? '<p class="hint">Two players minimum to start.</p>'
-      : '<div class="row">' +
+      : '<h2>Format</h2><div class="seg">' +
+      '<button data-format="double"' + (T.format === 'double' ? ' class="on"' : '') + '>' +
+      'Double elimination<em>' + matchCount(n, 'double') + ' matches</em></button>' +
+      '<button data-format="single"' + (T.format === 'single' ? ' class="on"' : '') + '>' +
+      'Single elimination<em>' + matchCount(n, 'single') + ' matches</em></button>' +
+      '</div>' +
+      '<p class="hint">' + n + ' player' + (n === 1 ? '' : 's') + ' in a ' + size +
+      '-slot bracket' +
+      (size > n ? ' — the top ' + (size - n) + ' seed' + (size - n === 1 ? '' : 's') + ' get a bye' : '') +
+      (T.format === 'double' ? '. One more if the bracket reset fires.' : '.') +
+      (T.ph ? ' Changing the format asks for the seed password.' : '') + '</p>' +
+      '<div class="row">' +
       '<button class="primary big" data-start="order">Start · seeded order</button>' +
       '<button data-start="random">Shuffle &amp; start</button>' +
-      '</div><p class="hint">' + n + ' player' + (n === 1 ? '' : 's') + ' in a ' + size +
-      '-slot bracket' + (size > n ? ' — the top ' + (size - n) + ' seed' + (size - n === 1 ? '' : 's') + ' get a bye' : '') +
-      '. Anyone can start it.</p>')
+      '</div><p class="hint">Anyone can start it.</p>')
     + '</section>';
 }
 
@@ -775,12 +792,16 @@ function wire() {
       return;
     }
 
-    const t = e.target.closest('[data-pick],[data-start],[data-drop],[data-reset],[data-pass],#copy-link');
+    const t = e.target.closest('[data-pick],[data-start],[data-drop],[data-reset],[data-pass],[data-format],#copy-link');
     if (!t) return;
     const T = TS[currentTid()];
     const d = t.dataset;
 
-    if (d.pass && T) {
+    if (d.format && T) {
+      if (d.format !== T.format && (!T.ph || askPass(T.tid, 'What\u2019s the seed password?'))) {
+        pushOp({ t: 'format', tid: T.tid, f: d.format });
+      }
+    } else if (d.pass && T) {
       setSeedPassword(T);
     } else if (t.id === 'copy-link') {
       shareOrCopy(T, joinLink(currentTid()));

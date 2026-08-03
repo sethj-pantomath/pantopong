@@ -132,6 +132,18 @@ button.ghost { background: transparent; }
 button.big { width: 100%; padding: 13px; font-size: 15px; }
 
 .row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.seg { display: flex; gap: 8px; flex-wrap: wrap; }
+.seg button {
+  flex: 1 1 160px; display: flex; flex-direction: column; align-items: flex-start;
+  gap: 3px; padding: 12px 14px; background: transparent; font-size: 14px;
+}
+.seg button em {
+  font-style: normal; font-size: 11px; font-weight: 700; color: var(--faint);
+  letter-spacing: .04em;
+}
+.seg button.on { background: var(--gold); border-color: var(--gold); color: #17190f; }
+.seg button.on em { color: rgba(23, 25, 15, .7); }
 .row button.big { width: auto; flex: 1 1 200px; }
 
 .linkbox { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 14px; }

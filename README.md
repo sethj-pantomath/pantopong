@@ -56,7 +56,9 @@ Live at `https://sethj-pantomath.github.io/pantopong/`.
 
 ## How it works
 
-**Create** — name it, pick single or double elimination.
+**Create** — name it, pick single or double elimination. The format can be toggled from the
+lobby right up until kickoff, with the match count for each shown so a big field is an
+informed choice (14 players is 26 matches double, 13 single).
 
 **Share** — copy the join link into the channel. It points at the val's `/t/<tid>` route,
 not the app, so it unfurls in Slack with the tournament name and a live player count:
