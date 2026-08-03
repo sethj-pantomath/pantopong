@@ -273,6 +273,16 @@ button.big { width: 100%; padding: 13px; font-size: 15px; }
 .tlist a:hover strong { color: var(--gold); }
 .tlist span { color: var(--faint); font-size: 12px; white-space: nowrap; }
 
+/* rules */
+
+.rules { list-style: none; margin: 0; padding: 0; }
+.rules li {
+  padding: 9px 0; border-bottom: 1px solid var(--line);
+  font-size: 14px; color: var(--dim);
+}
+.rules li:last-child { border-bottom: 0; }
+.rules strong { color: var(--text); font-weight: 700; }
+
 /* champion */
 
 .champ {

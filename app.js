@@ -666,6 +666,15 @@ function viewLobby(T) {
     + '</section>';
 }
 
+function rulesPanel() {
+  return '<section class="panel"><h2>Rules</h2><ul class="rules">' +
+    '<li><strong>Best 2 of 3</strong> games, games to <strong>11</strong></li>' +
+    '<li>Switch serve every <strong>2 serves</strong></li>' +
+    '<li><strong>Unlimited lets</strong></li>' +
+    '<li>At <strong>10\u201310</strong>, switch serve every serve until someone <strong>wins by 2</strong></li>' +
+    '</ul></section>';
+}
+
 function viewBracket(T) {
   const b = resolveBracket(T);
   const groups = {};
@@ -680,7 +689,7 @@ function viewBracket(T) {
     '<p class="sub">' + (T.format === 'single' ? 'Single' : 'Double') + ' elimination · ' +
     T.seeds.length + ' players</p></div>' +
     '<button class="ghost" id="copy-link">' + (canShare() ? 'Share' : 'Copy link') + '</button>' +
-    '</section>';
+    '</section>' + rulesPanel();
 
   if (b.champion) {
     html += '<div class="champ"><span>🏆</span>' + avatarOf(T, b.champion, 'xl') +

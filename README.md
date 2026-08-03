@@ -134,6 +134,9 @@ banner. Back to lobby clears results and lets you reseed.
 
 No scores — just who won. Add them later if the league misses them.
 
+The bracket page carries the house rules: best 2 of 3 to 11, serve switches every 2, unlimited
+lets, and at 10-10 serve switches every point until someone wins by 2.
+
 ## Bracket
 
 Standard elimination. Double: winners bracket of *n*−1 slots, losers bracket of *n*−2, the
