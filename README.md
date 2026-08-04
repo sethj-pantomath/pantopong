@@ -143,9 +143,22 @@ When a match is decided the endpoint posts to `#pantopongchampionships`:
 
 > Aidan beat Ben in Round 1
 
-The webhook URL lives in the val's `PANTOPONG_SLACK_WEBHOOK` environment variable, so it
-is never in the page. An Incoming Webhook rather than a user token: a user token would post
-every automated result as a person, and carries far more scope than one call needs.
+Configured by a val environment variable, so no credential is ever in the page. Either:
+
+- `PANTOPONG_SLACK_TOKEN` — a bot (`xoxb-`) or user (`xoxp-`) token, posted via
+  `chat.postMessage`. Optional `PANTOPONG_SLACK_CHANNEL`, defaulting to
+  `#pantopongchampionships`.
+- `PANTOPONG_SLACK_WEBHOOK` — an Incoming Webhook or Workflow Builder webhook URL.
+
+The token wins when both are set, so adding one takes over from a stale webhook value
+without having to clear the old variable first. A user token posts as a person, which reads
+oddly for automated results; a bot token or webhook is preferable. Slack answers 200 with
+`ok: false` for auth and scope failures, so the response body is checked rather than the
+status.
+
+Note there is no shortcut that skips creating a Slack app: legacy tokens were removed in
+2020, so a token needs an app just as a webhook does. Workflow Builder's webhook trigger is
+the one route that needs no app at all.
 
 Results are not append-once — tapping a winner sets it and tapping again clears it — so a
 fumbled tap would otherwise produce a claim, a retraction and a repeat. A single atomic
