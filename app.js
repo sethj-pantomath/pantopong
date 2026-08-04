@@ -1193,7 +1193,16 @@ function wire() {
       // the opponent along rather than making it rebuild the bracket to find them
       const slot = resolveBracket(T).slots.filter(function (s) { return s.id === d.slot; })[0];
       const lose = win && slot ? (slot.pa === win ? slot.pb : slot.pa) : null;
-      pushOp({ t: 'result', tid: T.tid, slot: d.slot, winner: win, loser: lose, pid: PID });
+      // whether this result actually crowns someone can only be answered here:
+      // in double elim the grand final is decisive only when the winners-bracket
+      // player takes it, otherwise a reset follows
+      const after = Object.assign({}, T.results);
+      if (win) after[d.slot] = win; else delete after[d.slot];
+      const champ = !!win && resolvePicks(T, after).champion === win;
+      pushOp({
+        t: 'result', tid: T.tid, slot: d.slot,
+        winner: win, loser: lose, champ: champ, pid: PID
+      });
     } else if (d.start && T) {
       startTournament(T, d.start === 'random');
     } else if (d.drop && T) {
