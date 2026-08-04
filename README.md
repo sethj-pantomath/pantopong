@@ -137,6 +137,28 @@ No scores — just who won. Add them later if the league misses them.
 The bracket page carries the house rules: best 2 of 3 to 11, serve switches every 2, unlimited
 lets, and at 10-10 serve switches every point until someone wins by 2.
 
+## Slack announcements
+
+When a match is decided the endpoint posts to `#pantopongchampionships`:
+
+> Aidan beat Ben in Round 1
+
+The webhook URL lives in the val's `PANTOPONG_SLACK_WEBHOOK` environment variable, so it
+is never in the page. An Incoming Webhook rather than a user token: a user token would post
+every automated result as a person, and carries far more scope than one call needs.
+
+Results are not append-once — tapping a winner sets it and tapping again clears it — so a
+fumbled tap would otherwise produce a claim, a retraction and a repeat. A single atomic
+`INSERT ... ON CONFLICT ... WHERE winner IS NOT excluded.winner` decides whether a report
+is new. Undoing a result deliberately leaves that row alone, which makes re-tapping the
+same winner silent while genuinely changing the winner still posts a correction.
+
+The client sends the loser alongside the winner so the endpoint does not need its own copy
+of the bracket resolver. An older client omits it and gets "Chloe won Round 1" instead.
+
+Announcing can never fail a result: the call is wrapped so a Slack outage or a revoked
+webhook only ever swallows its own error.
+
 ## Bracket pool
 
 Anyone can fill out a predicted bracket from the bracket page, players and

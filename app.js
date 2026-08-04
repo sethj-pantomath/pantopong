@@ -1188,7 +1188,12 @@ function wire() {
       shareOrCopy(T, joinLink(currentTid()));
     } else if (d.pick && T) {
       const cur = T.results[d.slot];
-      pushOp({ t: 'result', tid: T.tid, slot: d.slot, winner: cur === d.pick ? null : d.pick, pid: PID });
+      const win = cur === d.pick ? null : d.pick;
+      // the endpoint announces this to Slack and only has the winner, so pass
+      // the opponent along rather than making it rebuild the bracket to find them
+      const slot = resolveBracket(T).slots.filter(function (s) { return s.id === d.slot; })[0];
+      const lose = win && slot ? (slot.pa === win ? slot.pb : slot.pa) : null;
+      pushOp({ t: 'result', tid: T.tid, slot: d.slot, winner: win, loser: lose, pid: PID });
     } else if (d.start && T) {
       startTournament(T, d.start === 'random');
     } else if (d.drop && T) {
