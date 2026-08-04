@@ -160,6 +160,18 @@ Note there is no shortcut that skips creating a Slack app: legacy tokens were re
 2020, so a token needs an app just as a webhook does. Workflow Builder's webhook trigger is
 the one route that needs no app at all.
 
+The championship gets its own message: a trophy band, the champion in caps, who they beat,
+their win count, the field size, and a link to the bracket. It is plain text with newlines
+and literal emoji on purpose — a Workflow Builder trigger only accepts the variables you
+declare, so everything has to fit in one `text` string, and variable content is not reliably
+parsed as markup, which rules out bold.
+
+Which match crowns someone is decided by the client, which sets `champ` on the result,
+because only it has the bracket resolver. In double elimination the grand final is decisive
+only when the winners-bracket player wins it; otherwise a reset follows and the title is
+still open. The endpoint falls back to matching the final slot id, which is correct for
+single elimination and keeps older clients working.
+
 Results are not append-once — tapping a winner sets it and tapping again clears it — so a
 fumbled tap would otherwise produce a claim, a retraction and a repeat. A single atomic
 `INSERT ... ON CONFLICT ... WHERE winner IS NOT excluded.winner` decides whether a report
