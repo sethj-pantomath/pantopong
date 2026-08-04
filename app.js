@@ -12,7 +12,7 @@ const POOL_POINTS = [0, 1, 2, 4, 8, 16];
 // a contract change never re-fetches its own script, so HTTP caching cannot
 // rescue it — the endpoint reports its version and we compare. Bump only when
 // old code would misbehave, never for cosmetic changes.
-const CONTRACT = 4;
+const CONTRACT = 5;
 const VOID = ' void';
 const PEND = ' pend';
 

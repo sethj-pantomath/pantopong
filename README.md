@@ -166,6 +166,11 @@ and literal emoji on purpose — a Workflow Builder trigger only accepts the var
 declare, so everything has to fit in one `text` string, and variable content is not reliably
 parsed as markup, which rules out bold.
 
+Round names come from the effective format, which means replaying `format` ops rather than
+trusting the `create` op: a tournament created as double and switched to single in the lobby
+would otherwise be announced as "Winners Round 1", and single elimination has no winners
+side.
+
 Which match crowns someone is decided by the client, which sets `champ` on the result,
 because only it has the bracket resolver. In double elimination the grand final is decisive
 only when the winners-bracket player wins it; otherwise a reset follows and the title is
